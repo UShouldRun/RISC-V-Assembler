@@ -9,7 +9,7 @@ RANLIB = ranlib
 CXXFLAGS = -std=c++17 -Wall -Werror -g -O2
 
 MAIN_SOURCE = src/main.cpp
-LIB_SOURCES = lib/lexer/src/lexer.cpp
+LIB_SOURCES = lib/lexer/src/lexer.cpp lib/parser/src/parser.cpp
 # $(wildcard lib/*/src/*.cpp)
 
 MAIN_OBJECT = $(BUILD_DIR)/main.o
@@ -19,6 +19,7 @@ INCLUDE_DIRS = $(wildcard lib/*/include)
 INC_FLAGS = $(foreach dir, $(INCLUDE_DIRS), -I./$(dir))
 CXXFLAGS += $(INC_FLAGS)
 
+RED   = \033[031m
 GREEN = \033[032m
 BLUE  = \033[036m
 RESET = \033[0m
@@ -26,6 +27,17 @@ RESET = \033[0m
 .PHONY: all clean
 
 all: $(BUILD_DIR) $(TARGET)
+
+test: all
+	@echo "$(BLUE)---Running tests---$(RESET)"
+	@for f in test/*; do \
+		build/riscv "$$f"; \
+		if [ "$$?" -eq 0 ]; then \
+			echo "$(GREEN)Test $$f passed$(RESET)"; \
+		else \
+			echo "$(RED)Test $$f failed$(RESET)"; \
+		fi; \
+	done
 
 $(BUILD_DIR):
 	mkdir -p $@

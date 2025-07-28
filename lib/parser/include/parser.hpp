@@ -1,7 +1,6 @@
 #ifndef __PARSER_H_
 #define __PARSER_H_
 
-#include "error.hpp"
 #include "lexer.hpp"
 
 namespace parser {
@@ -9,8 +8,11 @@ namespace parser {
   typedef struct riscv_astn_text RISCVASTN_Text;
   typedef struct riscv_astn_data RISCVASTN_Data;
 
-  RISCVAST*   parser         (const lexer::RISCVToken*, const uint64_t);
-  void        rewrite_pseudo (RISCVAST*);
+  RISCVAST*   parse          (lexer::RISCVToken*, const uint64_t);
+  void        check          (const RISCVAST*);
+
+  void        ast_print      (const RISCVAST*);
+  void        ast_free       (RISCVAST*);
 
   struct riscv_astn_text {
     lexer::RISCVToken
@@ -18,8 +20,9 @@ namespace parser {
   };
 
   struct riscv_astn_data {
+    uint64_t s_arr;
     lexer::RISCVToken
-      *label, *type, *data;
+      *symbol, *type, **arr;
   };
 
   struct riscv_ast {

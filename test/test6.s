@@ -20,7 +20,7 @@ main:
     
     # Call factorial function
     mv a0, s0           # Set argument for factorial
-    jal ra, factorial   # Call factorial function
+    jal factorial   # Call factorial function
     mv s1, a0           # Store result in s1
     
     # Print result message
@@ -57,7 +57,7 @@ factorial:
     
     # Recursive case: factorial(n-1)
     addi a0, a0, -1     # n - 1
-    jal ra, factorial   # factorial(n-1)
+    jal factorial   # factorial(n-1)
     
     # Multiply n * factorial(n-1)
     lw t0, 0(sp)        # Load original n

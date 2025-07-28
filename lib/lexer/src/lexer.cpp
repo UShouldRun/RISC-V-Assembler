@@ -216,6 +216,14 @@ namespace lexer {
   bool riscv_token_is_param(const RISCVTokenType type) {
     return riscv_token_is_reg(type) || type == TOKEN_LIT_NUMBER || type == TOKEN_SYMBOL;
   }
+
+  bool riscv_token_is_lit(const RISCVTokenType type) {
+    return type == TOKEN_LIT_NUMBER || type == TOKEN_LIT_STRING;
+  }
+
+  bool riscv_token_is_symbol_type(const RISCVTokenType type) {
+    return type == TOKEN_BYTE || type == TOKEN_HALF || type == TOKEN_WORD || type == TOKEN_STRING;
+  }
 }
 
 void _lexer_scan_line(

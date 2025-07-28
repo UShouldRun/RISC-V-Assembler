@@ -18,12 +18,12 @@ main:
     
     la a0, array
     lw a1, array_size
-    jal ra, print_array
+    jal print_array
     
     # Sort the array
     la a0, array
     lw a1, array_size
-    jal ra, bubble_sort
+    jal bubble_sort
     
     # Print sorted array
     la a0, sorted_msg
@@ -32,7 +32,7 @@ main:
     
     la a0, array
     lw a1, array_size
-    jal ra, print_array
+    jal print_array
     
     # Exit program
     li a7, 10

@@ -174,6 +174,8 @@ namespace lexer {
   bool        riscv_token_is_reg          (const RISCVTokenType);
   bool        riscv_token_is_inst         (const RISCVTokenType);
   bool        riscv_token_is_param        (const RISCVTokenType);
+  bool        riscv_token_is_lit          (const RISCVTokenType);
+  bool        riscv_token_is_symbol_type  (const RISCVTokenType);
 
   struct riscv_token {
     RISCVTokenType type;

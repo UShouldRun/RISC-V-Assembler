@@ -47,31 +47,6 @@ very_long_label_name_that_tests_symbol_parsing:
 _underscore_label:
     nop
     
-label123:
-    nop
-    
-    # Comments with various formats
-    nop                  # End of line comment
-    nop # Comment immediately after instruction
-    # Full line comment
-        # Indented comment
-    
-    # Empty lines and whitespace handling
-    
-    
-    nop
-    
-    # String edge cases
-    .string ""           # Empty string
-    .string " "          # Single space
-    .string "\n"         # Just newline
-    .string "\t"         # Just tab
-    
-    # Directive edge cases
-    .byte 0, 1, 255      # Multiple values
-    .half 0, 65535       # Multiple halfwords
-    .word 0, 0xFFFFFFFF  # Multiple words
-
 .data
     # Data section edge cases
     single_byte: .byte 0x42

@@ -3,19 +3,19 @@
 
 .data
     # Matrix A (3x3)
-    matrix_a: .word 1, 2, 3
-              .word 4, 5, 6
-              .word 7, 8, 9
+    matrix_a: .word 1, 2, 3,
+                    4, 5, 6,
+                    7, 8, 9
     
     # Matrix B (3x3)
-    matrix_b: .word 9, 8, 7
-              .word 6, 5, 4
-              .word 3, 2, 1
+    matrix_b: .word 9, 8, 7,
+                    6, 5, 4,
+                    3, 2, 1
     
     # Result matrix C (3x3) - initialized to zeros
-    matrix_c: .word 0, 0, 0
-              .word 0, 0, 0
-              .word 0, 0, 0
+    matrix_c: .word 0, 0, 0,
+                    0, 0, 0,
+                    0, 0, 0
     
     matrix_a_msg: .string "Matrix A:\n"
     matrix_b_msg: .string "Matrix B:\n"
@@ -31,7 +31,7 @@ main:
     ecall
     
     la a0, matrix_a
-    jal ra, print_matrix
+    jal print_matrix
     
     # Print Matrix B
     li a7, 4
@@ -39,13 +39,13 @@ main:
     ecall
     
     la a0, matrix_b
-    jal ra, print_matrix
+    jal print_matrix
     
     # Perform matrix multiplication
     la a0, matrix_a     # A matrix address
     la a1, matrix_b     # B matrix address
     la a2, matrix_c     # Result matrix address
-    jal ra, matrix_multiply_3x3
+    jal matrix_multiply_3x3
     
     # Print result
     li a7, 4
@@ -53,7 +53,7 @@ main:
     ecall
     
     la a0, matrix_c
-    jal ra, print_matrix
+    jal print_matrix
     
     # Exit program
     li a7, 10
