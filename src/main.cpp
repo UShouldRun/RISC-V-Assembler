@@ -24,17 +24,14 @@ int32_t main(int argc, char* argv[]) {
   uint64_t s_tokens = 0;
   lexer::RISCVToken* tokens = lexer::lex(filename, s_tokens);
 
-  /*
-  for (uint64_t i = 0; i < s_tokens; i++)
-    lexer::riscv_token_print(&tokens[i]);
-   * */
-
   parser::RISCVAST* ast = parser::parse(tokens, s_tokens);
   parser::check(ast);
   // parser::ast_print(ast);
 
+  const int32_t error = (int32_t)ast->error;
+
   parser::ast_free(ast);
   lexer::riscv_tokens_free(tokens, s_tokens);
 
-  return 0;
+  return error;
 }

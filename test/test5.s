@@ -17,7 +17,7 @@ main:
     li s3, 0            # s3 = index counter
     
 sum_loop:
-    bge s3, s1, calculate_average  # if index >= size, done
+    ble s1, s3, calculate_average  # if size <= index, done
     
     # Calculate address of current element
     slli t0, s3, 2      # t0 = index * 4 (word size)

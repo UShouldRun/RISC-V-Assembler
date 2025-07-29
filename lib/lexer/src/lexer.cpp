@@ -148,13 +148,11 @@ namespace lexer {
       case lexer::TOKEN_INST_32IM_MD_REM:     return "TOKEN_INST_32IM_MD_REM";
       case lexer::TOKEN_INST_32IM_MD_REMU:    return "TOKEN_INST_32IM_MD_REMU";
 
-      case lexer::TOKEN_INST_32IM_LS_L:       return "TOKEN_INST_32IM_LS_L";
       case lexer::TOKEN_INST_32IM_LS_LB:      return "TOKEN_INST_32IM_LS_LB";
       case lexer::TOKEN_INST_32IM_LS_LH:      return "TOKEN_INST_32IM_LS_LH";
       case lexer::TOKEN_INST_32IM_LS_LW:      return "TOKEN_INST_32IM_LS_LW";
       case lexer::TOKEN_INST_32IM_LS_LBU:     return "TOKEN_INST_32IM_LS_LBU";
       case lexer::TOKEN_INST_32IM_LS_LHU:     return "TOKEN_INST_32IM_LS_LHU";
-      case lexer::TOKEN_INST_32IM_LS_S:       return "TOKEN_INST_32IM_LS_S";
       case lexer::TOKEN_INST_32IM_LS_SB:      return "TOKEN_INST_32IM_LS_SB";
       case lexer::TOKEN_INST_32IM_LS_SH:      return "TOKEN_INST_32IM_LS_SH";
       case lexer::TOKEN_INST_32IM_LS_SW:      return "TOKEN_INST_32IM_LS_SW";
@@ -394,8 +392,6 @@ void _lexer_scan_line(
       type = lexer::TOKEN_INST_32IM_MD_REM;
     } else if (strcmp(token, KEYWORD_REMU) == 0) {
       type = lexer::TOKEN_INST_32IM_MD_REMU;
-    } else if (strcmp(token, KEYWORD_L) == 0) {
-      type = lexer::TOKEN_INST_32IM_LS_L;
     } else if (strcmp(token, KEYWORD_LB) == 0) {
       type = lexer::TOKEN_INST_32IM_LS_LB;
     } else if (strcmp(token, KEYWORD_LH) == 0) {
@@ -406,8 +402,6 @@ void _lexer_scan_line(
       type = lexer::TOKEN_INST_32IM_LS_LBU;
     } else if (strcmp(token, KEYWORD_LHU) == 0) {
       type = lexer::TOKEN_INST_32IM_LS_LHU;
-    } else if (strcmp(token, KEYWORD_S) == 0) {
-      type = lexer::TOKEN_INST_32IM_LS_S;
     } else if (strcmp(token, KEYWORD_SB) == 0) {
       type = lexer::TOKEN_INST_32IM_LS_SB;
     } else if (strcmp(token, KEYWORD_SH) == 0) {

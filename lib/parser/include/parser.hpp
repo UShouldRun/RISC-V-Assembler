@@ -9,7 +9,7 @@ namespace parser {
   typedef struct riscv_astn_data RISCVASTN_Data;
 
   RISCVAST*   parse          (lexer::RISCVToken*, const uint64_t);
-  void        check          (const RISCVAST*);
+  void        check          (RISCVAST*);
 
   void        ast_print      (const RISCVAST*);
   void        ast_free       (RISCVAST*);

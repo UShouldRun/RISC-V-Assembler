@@ -37,36 +37,120 @@ namespace parser {
     return ast;
   }
 
-  void check(const RISCVAST* ast) {
+  void check(RISCVAST* ast) {
     for (uint64_t i = 0; i < ast->s_text; i++) {
-      const RISCVASTN_Text* inst = &(ast->text[i]);
+      const RISCVASTN_Text* cmd = &(ast->text[i]);
 
-      switch (inst->inst->type) {
-        case lexer::TOKEN_INST_32IM_FC_J:
-        case lexer::TOKEN_INST_32IM_FC_JR:
-        case lexer::TOKEN_INST_32IM_FC_CALL: {
+      switch (cmd->inst->type) {
+        case lexer::TOKEN_INST_32IM_FC_J: {
+          const bool error = cmd->f1->type != lexer::TOKEN_SYMBOL;
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_J,
+            lexer::riscv_token_get_type_string(lexer::TOKEN_INST_32IM_FC_J),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
-        case lexer::TOKEN_INST_32IM_FC_JAL:
+        case lexer::TOKEN_INST_32IM_FC_JR:
+        case lexer::TOKEN_INST_32IM_FC_CALL: {
+          const bool error = !lexer::riscv_token_is_reg(cmd->f1->type);
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_JR_CALL,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
+          break;
+        }
+
+        case lexer::TOKEN_INST_32IM_FC_JAL: {
+          const bool error = !(
+            (
+              lexer::riscv_token_is_reg(cmd->f1->type) &&
+              cmd->f2->type == lexer::TOKEN_LIT_NUMBER
+            ) || (
+              cmd->f1->type == lexer::TOKEN_SYMBOL &&
+              cmd->f2 == nullptr
+            )
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_JAL,
+            lexer::riscv_token_get_type_string(lexer::TOKEN_INST_32IM_FC_JAL),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
+          break;
+        }
         case lexer::TOKEN_INST_32IM_FC_JALR: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            (
+              cmd->f2 == nullptr || 
+              (lexer::riscv_token_is_reg(cmd->f2->type) && cmd->f3->type == lexer::TOKEN_LIT_NUMBER)
+            )
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_JALR,
+            lexer::riscv_token_get_type_string(lexer::TOKEN_INST_32IM_FC_JALR),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
         case lexer::TOKEN_INST_32IM_MOVE_LI:
         case lexer::TOKEN_INST_32IM_MOVE_LUI:
         case lexer::TOKEN_INST_32IM_MOVE_AUIPC: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            cmd->f2->type == lexer::TOKEN_LIT_NUMBER
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_1,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
         case lexer::TOKEN_INST_32IM_MOVE_LA: 
-        case lexer::TOKEN_INST_32IM_LS_L:
         case lexer::TOKEN_INST_32IM_FC_BEQZ:
         case lexer::TOKEN_INST_32IM_FC_BNEZ:
         case lexer::TOKEN_INST_32IM_FC_BLEZ:
         case lexer::TOKEN_INST_32IM_FC_BGEZ:
         case lexer::TOKEN_INST_32IM_FC_BLTZ:
         case lexer::TOKEN_INST_32IM_FC_BGTZ: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            cmd->f2->type == lexer::TOKEN_SYMBOL
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_2,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
@@ -78,6 +162,40 @@ namespace parser {
         case lexer::TOKEN_INST_32IM_CP_SLTZ:
         case lexer::TOKEN_INST_32IM_CP_SGTZ:
         case lexer::TOKEN_INST_32IM_LNS_SQT: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            lexer::riscv_token_is_reg(cmd->f2->type)
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_3,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
+          break;
+        }
+
+        case lexer::TOKEN_INST_32IM_FC_BGT:
+        case lexer::TOKEN_INST_32IM_FC_BLE:
+        case lexer::TOKEN_INST_32IM_FC_BGTU:
+        case lexer::TOKEN_INST_32IM_FC_BLEU: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            lexer::riscv_token_is_reg(cmd->f2->type) &&
+            cmd->f3->type == lexer::TOKEN_SYMBOL
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_4,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
@@ -92,14 +210,24 @@ namespace parser {
         case lexer::TOKEN_INST_32IM_CP_SLTIU:
         case lexer::TOKEN_INST_32IM_FC_BEQ:
         case lexer::TOKEN_INST_32IM_FC_BNE:
-        case lexer::TOKEN_INST_32IM_FC_BGT:
         case lexer::TOKEN_INST_32IM_FC_BGE:
-        case lexer::TOKEN_INST_32IM_FC_BLE:
         case lexer::TOKEN_INST_32IM_FC_BLT:
-        case lexer::TOKEN_INST_32IM_FC_BGTU:
         case lexer::TOKEN_INST_32IM_FC_BGEU:
-        case lexer::TOKEN_INST_32IM_FC_BLTU:
-        case lexer::TOKEN_INST_32IM_FC_BLEU: {
+        case lexer::TOKEN_INST_32IM_FC_BLTU: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            lexer::riscv_token_is_reg(cmd->f2->type) &&
+            cmd->f3->type == lexer::TOKEN_LIT_NUMBER
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_5,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
@@ -125,6 +253,20 @@ namespace parser {
         case lexer::TOKEN_INST_32IM_LNS_SUB:
         case lexer::TOKEN_INST_32IM_LNS_MUL:
         case lexer::TOKEN_INST_32IM_LNS_DIV: {
+          const bool error = !(
+            lexer::riscv_token_is_reg(cmd->f1->type) &&
+            lexer::riscv_token_is_reg(cmd->f2->type) &&
+            lexer::riscv_token_is_reg(cmd->f3->type)
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_6,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
@@ -133,10 +275,33 @@ namespace parser {
         case lexer::TOKEN_INST_32IM_LS_LW:
         case lexer::TOKEN_INST_32IM_LS_LBU:
         case lexer::TOKEN_INST_32IM_LS_LHU:
-        case lexer::TOKEN_INST_32IM_LS_S:
         case lexer::TOKEN_INST_32IM_LS_SB:
         case lexer::TOKEN_INST_32IM_LS_SH:
         case lexer::TOKEN_INST_32IM_LS_SW: {
+          const bool error = !(
+            (
+              lexer::riscv_token_is_reg(cmd->f1->type) &&
+              cmd->f2->type == lexer::TOKEN_SYMBOL &&
+              cmd->f3 == nullptr
+            ) || (
+              lexer::riscv_token_is_reg(cmd->f1->type) &&
+              cmd->f2->type == lexer::TOKEN_LIT_NUMBER &&
+              lexer::riscv_token_is_reg(cmd->f3->type)
+            ) || (
+              lexer::riscv_token_is_reg(cmd->f1->type) &&
+              cmd->f2->type == lexer::TOKEN_SYMBOL &&
+              lexer::riscv_token_is_reg(cmd->f3->type)
+            )
+          );
+          ast->error |= error;
+          error(
+            ERROR,
+            error,
+            CHECK_ERROR_MSG_LS,
+            lexer::riscv_token_get_type_string(cmd->inst->type),
+            cmd->inst->filename,
+            cmd->inst->line
+          );
           break;
         }
 
@@ -286,7 +451,7 @@ void _parser_parse_text(
     incr = 1;
     switch (tokens[i].type) {
       case lexer::TOKEN_SYMBOL: {
-        _ast->error = i + 1 >= s_tokens || tokens[i + 1].type != lexer::TOKEN_COLON;
+        _ast->error |= i + 1 >= s_tokens || tokens[i + 1].type != lexer::TOKEN_COLON;
         error(
           FATAL, 
           _ast->error,
@@ -336,7 +501,7 @@ void _parser_parse_text(
       case lexer::TOKEN_INST_32IM_FC_J:
       case lexer::TOKEN_INST_32IM_FC_JR:
       case lexer::TOKEN_INST_32IM_FC_CALL: {
-        _ast->error = i + 1 >= s_tokens || lexer::riscv_token_is_inst(tokens[i + 1].type);
+        _ast->error |= i + 1 >= s_tokens || lexer::riscv_token_is_inst(tokens[i + 1].type);
         error(
           FATAL,
           _ast->error,
@@ -368,7 +533,7 @@ void _parser_parse_text(
 
       case lexer::TOKEN_INST_32IM_FC_JAL:
       case lexer::TOKEN_INST_32IM_FC_JALR: {
-        _ast->error = (
+        _ast->error |= (
           !(
             i + 3 <= s_tokens &&
             lexer::riscv_token_is_reg(tokens[i + 1].type) &&
@@ -416,7 +581,6 @@ void _parser_parse_text(
       case lexer::TOKEN_INST_32IM_MOVE_MV:
       case lexer::TOKEN_INST_32IM_ALS_NEG:
       case lexer::TOKEN_INST_32IM_ALS_NOT:
-      case lexer::TOKEN_INST_32IM_LS_L:
       case lexer::TOKEN_INST_32IM_CP_SEQZ:
       case lexer::TOKEN_INST_32IM_CP_SNEZ:
       case lexer::TOKEN_INST_32IM_CP_SLTZ:
@@ -428,7 +592,7 @@ void _parser_parse_text(
       case lexer::TOKEN_INST_32IM_FC_BLTZ:
       case lexer::TOKEN_INST_32IM_FC_BGTZ:
       case lexer::TOKEN_INST_32IM_LNS_SQT: {
-        _ast->error = (
+        _ast->error |= (
           i + 3 >= s_tokens ||
           !lexer::riscv_token_is_param(tokens[i + 1].type) ||
           tokens[i + 2].type != lexer::TOKEN_COMMA ||
@@ -504,7 +668,7 @@ void _parser_parse_text(
       case lexer::TOKEN_INST_32IM_LNS_SUB:
       case lexer::TOKEN_INST_32IM_LNS_MUL:
       case lexer::TOKEN_INST_32IM_LNS_DIV: {
-        _ast->error = (
+        _ast->error |= (
           i + 5 >= s_tokens ||
           !lexer::riscv_token_is_param(tokens[i + 1].type) ||
           tokens[i + 2].type != lexer::TOKEN_COMMA ||
@@ -546,10 +710,15 @@ void _parser_parse_text(
       case lexer::TOKEN_INST_32IM_LS_LW:
       case lexer::TOKEN_INST_32IM_LS_LBU:
       case lexer::TOKEN_INST_32IM_LS_LHU:
-      case lexer::TOKEN_INST_32IM_LS_S:
       case lexer::TOKEN_INST_32IM_LS_SB:
       case lexer::TOKEN_INST_32IM_LS_SH:
       case lexer::TOKEN_INST_32IM_LS_SW: {
+        const bool symbol = (
+          i + 3 < s_tokens &&
+          lexer::riscv_token_is_param(tokens[i + 1].type) &&
+          tokens[i + 2].type == lexer::TOKEN_COMMA &&
+          tokens[i + 3].type == lexer::TOKEN_SYMBOL
+        );
         const bool no_offset = (
           i + 3 < s_tokens &&
           lexer::riscv_token_is_param(tokens[i + 1].type) &&
@@ -566,11 +735,11 @@ void _parser_parse_text(
           tokens[i + 6].type == lexer::TOKEN_RPAREN
         );
 
-        _ast->error = !offset && !no_offset;
+        _ast->error |= !symbol && !offset && !no_offset;
         error(
           FATAL,
           _ast->error,
-          "parser - the following instruction requires three parameters as \"<inst> <param1>, <imm>(<param2>)\": ",
+          "parser - the following instruction requires two/three parameters as \"<inst> <xd>, <symbol> || <inst> <xd>, <imm>(<xa>)\": ",
           lexer::riscv_token_get_type_string(tokens[i].type),
           tokens[i].filename,
           tokens[i].line

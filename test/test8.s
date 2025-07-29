@@ -37,11 +37,12 @@ calculator_loop:
     
     # Check for exit
     li t0, 5
-    beq s0, t0, exit_program
+    sub t0, s0, t0
+    beqz t0, exit_program
     
     # Validate choice (1-4)
     li t0, 1
-    blt s0, t0, invalid_input
+    bgt t0, s0, invalid_input
     li t0, 4
     bgt s0, t0, invalid_input
     
@@ -64,14 +65,14 @@ calculator_loop:
     mv s2, a0           # Store second number in s2
     
     # Branch to appropriate operation
-    li t0, 1
-    beq s0, t0, do_addition
-    li t0, 2
-    beq s0, t0, do_subtraction
-    li t0, 3
-    beq s0, t0, do_multiplication
-    li t0, 4
-    beq s0, t0, do_division
+    addi t0, s0, -1
+    beqz t0, do_addition
+    addi t0, s0, -2
+    beqz t0, do_subtraction
+    addi t0, s0, -3
+    beqz t0, do_multiplication
+    addi t0, s0, -4
+    beqz t0, do_division
     
 do_addition:
     add s3, s1, s2      # s3 = s1 + s2

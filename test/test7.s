@@ -55,14 +55,14 @@ bubble_sort:
     li s2, 0            # s2 = i (outer loop counter)
     
 outer_loop:
-    bge s2, s1, sort_done    # if i >= size, done
+    ble s1, s2, sort_done    # if size <= i, done
     
     li s3, 0            # s3 = j (inner loop counter)
     sub t0, s1, s2      # t0 = size - i
     addi t0, t0, -1     # t0 = size - i - 1
     
 inner_loop:
-    bge s3, t0, outer_next   # if j >= size-i-1, next outer iteration
+    ble t0, s3, outer_next   # if size - i - 1 <= j, next outer iteration
     
     # Calculate addresses of array[j] and array[j+1]
     slli t1, s3, 2      # t1 = j * 4
@@ -113,7 +113,7 @@ print_array:
     li s2, 0            # s2 = index counter
     
 print_loop:
-    bge s2, s1, print_done   # if index >= size, done
+    ble s1, s2, print_done   # if size <= index, done
     
     # Calculate address of current element
     slli t0, s2, 2      # t0 = index * 4

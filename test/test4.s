@@ -20,7 +20,7 @@ main:
     
     # Handle base cases
     li t0, 2
-    blt s0, t0, base_case
+    bgt t0, s0, base_case
     
     # Initialize for iteration
     li s1, 0            # fib(0) = 0
@@ -28,7 +28,7 @@ main:
     li s3, 2            # counter = 2
     
 fibonacci_loop:
-    bge s3, s0, done    # if counter >= n, done
+    ble s0, s3, done    # if n <= counter, done
     
     # Calculate next fibonacci number
     add s4, s1, s2      # next_fib = fib(n-2) + fib(n-1)

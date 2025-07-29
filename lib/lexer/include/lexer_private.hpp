@@ -131,13 +131,11 @@
 #define KEYWORD_REM    "rem"
 #define KEYWORD_REMU   "remu"
 
-#define KEYWORD_L      "l"
 #define KEYWORD_LB     "lb"
 #define KEYWORD_LH     "lh"
 #define KEYWORD_LW     "lw"
 #define KEYWORD_LBU    "lbu"
 #define KEYWORD_LHU    "lhu"
-#define KEYWORD_S      "s"
 #define KEYWORD_SB     "sb"
 #define KEYWORD_SH     "sh"
 #define KEYWORD_SW     "sw"

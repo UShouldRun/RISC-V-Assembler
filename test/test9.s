@@ -82,13 +82,13 @@ matrix_multiply_3x3:
     
 row_loop:
     li t0, 3
-    bge s3, t0, multiply_done   # if i >= 3, done
+    ble t0, s3, multiply_done   # if 3 <= i, done
     
     li s4, 0            # s4 = j (column counter)
     
 col_loop:
     li t0, 3
-    bge s4, t0, next_row        # if j >= 3, next row
+    ble t0, s4, next_row        # if 3 <= j, next row
     
     # Calculate C[i][j] = sum of A[i][k] * B[k][j] for k = 0 to 2
     li s5, 0            # s5 = k (inner loop counter)
@@ -96,7 +96,7 @@ col_loop:
     
 inner_loop:
     li t0, 3
-    bge s5, t0, store_result    # if k >= 3, store result
+    ble t0, s5, store_result    # if 3 <= k, store result
     
     # Calculate address of A[i][k]
     li t0, 3
