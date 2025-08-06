@@ -162,18 +162,20 @@ namespace lexer {
   typedef enum riscv_token_type RISCVTokenType;
   typedef struct riscv_token    RISCVToken;
 
-  RISCVToken* lex                         (const char*, uint64_t&);
+  RISCVToken*     lex                         (const char*, uint64_t&);
 
-  void        riscv_token_print           (const RISCVToken*);
-  void        riscv_tokens_free           (RISCVToken*, const uint64_t);
+  void            riscv_token_print           (const RISCVToken*);
+  void            riscv_tokens_free           (RISCVToken*, const uint64_t);
 
-  const char* riscv_token_get_type_string (const RISCVTokenType);
+  const char*     riscv_token_get_type_string (const RISCVTokenType);
+  inline uint64_t riscv_token_get_type_size   (const RISCVTokenType);
+  inline uint8_t  riscv_token_get_reg         (const RISCVTokenType);
 
-  bool        riscv_token_is_reg          (const RISCVTokenType);
-  bool        riscv_token_is_inst         (const RISCVTokenType);
-  bool        riscv_token_is_param        (const RISCVTokenType);
-  bool        riscv_token_is_lit          (const RISCVTokenType);
-  bool        riscv_token_is_symbol_type  (const RISCVTokenType);
+  inline bool     riscv_token_is_reg          (const RISCVTokenType);
+  inline bool     riscv_token_is_inst         (const RISCVTokenType);
+  inline bool     riscv_token_is_param        (const RISCVTokenType);
+  inline bool     riscv_token_is_lit          (const RISCVTokenType);
+  inline bool     riscv_token_is_symbol_type  (const RISCVTokenType);
 
   struct riscv_token {
     RISCVTokenType type;

@@ -26,9 +26,14 @@ int32_t main(int argc, char* argv[]) {
 
   parser::RISCVAST* ast = parser::parse(tokens, s_tokens);
   parser::check(ast);
-  // parser::ast_print(ast);
 
   const int32_t error = (int32_t)ast->error;
+  if (!error) {
+    uint64_t s_insts = 0;
+    const uint32_t* insts = mapper::map_inst2bin(ast, s_array);
+    mapper::write(insts, s_insts);
+    free(insts);
+  }
 
   parser::ast_free(ast);
   lexer::riscv_tokens_free(tokens, s_tokens);
