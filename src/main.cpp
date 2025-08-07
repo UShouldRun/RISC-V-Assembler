@@ -6,7 +6,7 @@
 
 #include "lexer.hpp"
 #include "parser.hpp"
-// #include "mapper.hpp"
+#include "mapper.hpp"
 
 void print_help() {
   std::cout << "riscv <your_file.s>";
@@ -29,10 +29,28 @@ int32_t main(int argc, char* argv[]) {
 
   const int32_t error = (int32_t)ast->error;
   if (!error) {
-    uint64_t s_insts = 0;
-    const uint32_t* insts = mapper::map_inst2bin(ast, s_array);
-    mapper::write(insts, s_insts);
-    free(insts);
+    mapper::RISCVEncoding encoding = {
+      .s_data = 0,
+      .s_inst = 0,
+      .data   = nullptr,
+      .insts  = nullptr
+    };
+
+    encoding.data  = mapper::map_data2bin(ast, encoding.s_data)
+    encoding.insts = mapper::map_inst2bin(ast, encoding.s_insts);
+    error(
+      FATAL,
+      "main - mapper returned a nullptr array of instructions",
+      "",
+      __FILE__,
+      __LINE__
+    );
+
+    mapper::write(filename, encoding);
+
+    free(encoding.insts);
+    if (encoding.data != nullptr)
+      free(encoding.data);
   }
 
   parser::ast_free(ast);

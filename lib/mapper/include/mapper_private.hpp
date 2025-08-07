@@ -90,36 +90,36 @@ typedef enum optype {
 #define FUNCT3_REMU    0x7
 #define FUNCT7_REMU    0x01
 
-#define OPCODE_LB  0b0000011 
-#define FUNCT3_LB  0x0
+#define OPCODE_LB      0b0000011 
+#define FUNCT3_LB      0x0
 
-#define OPCODE_LH  0b0000011 
-#define FUNCT3_LH  0x1
+#define OPCODE_LH      0b0000011 
+#define FUNCT3_LH      0x1
 
-#define OPCODE_LW  0b0000011 
-#define FUNCT3_LW  0x2
+#define OPCODE_LW      0b0000011 
+#define FUNCT3_LW      0x2
 
-#define OPCODE_LBU  0b0000011 
-#define FUNCT3_LBU  0x2
+#define OPCODE_LBU     0b0000011 
+#define FUNCT3_LBU     0x2
 
-#define OPCODE_LHU  0b0000011 
-#define FUNCT3_LHU  0x2
+#define OPCODE_LHU     0b0000011 
+#define FUNCT3_LHU     0x2
 
-#define OPCODE_SB  0b0100011 
-#define FUNCT3_SB  0x0
+#define OPCODE_SB      0b0100011 
+#define FUNCT3_SB      0x0
 
-#define OPCODE_SH  0b0100011 
-#define FUNCT3_SH  0x1
+#define OPCODE_SH      0b0100011 
+#define FUNCT3_SH      0x1
 
-#define OPCODE_SW  0b0100011 
-#define FUNCT3_SW  0x2
+#define OPCODE_SW      0b0100011 
+#define FUNCT3_SW      0x2
 
-#define OPCODE_SLT   0b0110011
-#define FUNCT3_SLT   0x2
-#define FUNCT7_SLT   0x00
+#define OPCODE_SLT     0b0110011
+#define FUNCT3_SLT     0x2
+#define FUNCT7_SLT     0x00
 
-#define OPCODE_SLTI  0b0010011 
-#define FUNCT3_SLTI  0x2
+#define OPCODE_SLTI    0b0010011 
+#define FUNCT3_SLTI    0x2
 
 #define OPCODE_SLTU    0b0110011
 #define FUNCT3_SLTU    0x3
@@ -151,11 +151,36 @@ typedef enum optype {
 #define OPCODE_JAR     0b1100111
 #define FUNCT3_JAR     0x0
 
-inline uint32_t riscv_map_r_type(const uint8_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
-inline uint32_t riscv_map_i_type(const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
-inline uint32_t riscv_map_s_type(const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
-inline uint32_t riscv_map_b_type(const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
-inline uint32_t riscv_map_u_type(const uint32_t, const uint8_t, const uint8_t);
-inline uint32_t riscv_map_j_type(const uint32_t, const uint8_t, const uint8_t);
+#define OPCODE_OS      0b1110011
+#define IMM_ECALL      0x0
+#define IMM_EBREAK     0x1
+#define IMM_SRET       0x102
+
+#define OPCODE_LNS_ADD 0b0000000
+#define FUNCT3_LNS_ADD 0x0
+#define FUNCT7_LNS_ADD 0x00
+
+#define OPCODE_LNS_SUB 0b0000000
+#define FUNCT3_LNS_SUB 0x0
+#define FUNCT7_LNS_SUB 0x00
+
+#define OPCODE_LNS_MUL 0b0000000
+#define FUNCT3_LNS_MUL 0x0
+#define FUNCT7_LNS_MUL 0x00
+
+#define OPCODE_LNS_DIV 0b0000000
+#define FUNCT3_LNS_DIV 0x0
+#define FUNCT7_LNS_DIV 0x00
+
+#define OPCODE_LNS_SQT 0b0000000
+#define FUNCT3_LNS_SQT 0x0
+#define FUNCT7_LNS_SQT 0x00
+
+inline uint32_t riscv_map_r_type (const uint8_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
+inline uint32_t riscv_map_i_type (const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
+inline uint32_t riscv_map_s_type (const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
+inline uint32_t riscv_map_b_type (const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
+inline uint32_t riscv_map_u_type (const uint32_t, const uint8_t, const uint8_t);
+inline uint32_t riscv_map_j_type (const uint32_t, const uint8_t, const uint8_t);
 
 #endif // !__MAPPER_PRIVATE_H__
