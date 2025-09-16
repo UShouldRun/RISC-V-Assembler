@@ -13,54 +13,58 @@ typedef enum optype {
   OPTYPE_J
 } OpType;
 
-#define OPCODE_LUI   0b0110111
-#define OPCODE_AUIPC 0b0010111
+#define OPCODE_LUI     0b0110111
+#define OPCODE_AUIPC   0b0010111
 
-#define OPCODE_ADD   0b0110011
-#define OPCODE_ADDI  0b0010011
-#define OPCODE_SUB   0b0110011
+#define OPCODE_ADD     0b0110011
+#define OPCODE_ADDI    0b0010011
+#define OPCODE_SUB     0b0110011
 
-#define OPCODE_AND   0b0110011 
-#define FUNCT3_AND   0x7
-#define FUNCT7_AND   0x00
+#define OPCODE_AND     0b0110011 
+#define FUNCT3_AND     0x7
+#define FUNCT7_AND     0x00
 
-#define OPCODE_ANDI  0b0010011 
-#define FUNCT3_ANDI  0x7
+#define OPCODE_ANDI    0b0010011 
+#define FUNCT3_ANDI    0x7
 
-#define OPCODE_OR    0b0110011
-#define FUNCT3_OR    0x6
-#define FUNCT7_OR    0x00
+#define OPCODE_OR      0b0110011
+#define FUNCT3_OR      0x6
+#define FUNCT7_OR      0x00
 
-#define OPCODE_ORI   0b0010011 
-#define FUNCT3_ORI   0x6
+#define OPCODE_ORI     0b0010011 
+#define FUNCT3_ORI     0x6
 
-#define OPCODE_XOR   0b0110011
-#define FUNCT3_XOR   0x4
-#define FUNCT7_XOR   0x00
+#define OPCODE_XOR     0b0110011
+#define FUNCT3_XOR     0x4
+#define FUNCT7_XOR     0x00
 
-#define OPCODE_XORI  0b0010011 
-#define FUNCT3_XORI  0x4
+#define OPCODE_XORI    0b0010011 
+#define FUNCT3_XORI    0x4
 
-#define OPCODE_SLL   0b0110011
-#define FUNCT3_SLL   0x1
-#define FUNCT7_SLL   0x00
+#define OPCODE_SLL     0b0110011
+#define FUNCT3_SLL     0x1
+#define FUNCT7_SLL     0x00
 
-#define OPCODE_SLLI  0b0010011 
-#define FUNCT3_SLLI  0x1
+#define OPCODE_SLLI    0b0010011 
+#define FUNCT3_SLLI    0x1
 
-#define OPCODE_SRL   0b0110011
-#define FUNCT3_SRL   0x5
-#define FUNCT7_SRL   0x00
+#define OPCODE_SRL     0b0110011
+#define FUNCT3_SRL     0x5
+#define FUNCT7_SRL     0x00
 
-#define OPCODE_SRLI  0b0010011 
-#define FUNCT3_SRLI  0x5
+#define OPCODE_SRLI    0b0010011 
+#define FUNCT3_SRLI    0x5
 
-#define OPCODE_SRA   0b0110011
-#define FUNCT3_SRA   0x5
-#define FUNCT7_SRA   0x20
+#define OPCODE_SRA     0b0110011
+#define FUNCT3_SRA     0x5
+#define FUNCT7_SRA     0x20
 
-#define OPCODE_SRAI  0b0010011 
-#define FUNCT3_SRAI  0x5
+#define OPCODE_SRAI    0b0010011 
+#define FUNCT3_SRAI    0x5
+
+#define OPCODE_MUL     0b0110011
+#define FUNCT3_MUL     0x1
+#define FUNCT7_MUL     0x01
 
 #define OPCODE_MULH    0b0110011
 #define FUNCT3_MULH    0x1
@@ -148,8 +152,8 @@ typedef enum optype {
 
 #define OPCODE_JAL     0b1101111
 
-#define OPCODE_JAR     0b1100111
-#define FUNCT3_JAR     0x0
+#define OPCODE_JALR    0b1100111
+#define FUNCT3_JALR    0x0
 
 #define OPCODE_OS      0b1110011
 #define IMM_ECALL      0x0

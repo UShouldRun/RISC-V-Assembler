@@ -9,8 +9,7 @@ RANLIB = ranlib
 CXXFLAGS = -std=c++17 -Wall -Werror -g -O2
 
 MAIN_SOURCE = src/main.cpp
-LIB_SOURCES = lib/lexer/src/lexer.cpp lib/parser/src/parser.cpp
-# $(wildcard lib/*/src/*.cpp)
+LIB_SOURCES = $(wildcard lib/*/src/*.cpp)
 
 MAIN_OBJECT = $(BUILD_DIR)/main.o
 LIB_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(notdir $(LIB_SOURCES)))

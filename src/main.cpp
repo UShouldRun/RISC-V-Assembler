@@ -30,16 +30,17 @@ int32_t main(int argc, char* argv[]) {
   const int32_t error = (int32_t)ast->error;
   if (!error) {
     mapper::RISCVEncoding encoding = {
-      .s_data = 0,
-      .s_inst = 0,
-      .data   = nullptr,
-      .insts  = nullptr
+      .s_insts = 0,
+      .s_data  = 0,
+      .insts   = nullptr,
+      .data    = nullptr
     };
 
-    encoding.data  = mapper::map_data2bin(ast, encoding.s_data)
+    encoding.data  = mapper::map_data2bin(ast, encoding.s_data);
     encoding.insts = mapper::map_inst2bin(ast, encoding.s_insts);
     error(
       FATAL,
+      encoding.insts == nullptr,
       "main - mapper returned a nullptr array of instructions",
       "",
       __FILE__,

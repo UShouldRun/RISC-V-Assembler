@@ -202,50 +202,6 @@ namespace lexer {
       default:                         return "UNKNOWN_TOKEN_TYPE";
     }
   }
-
-  inline uint64_t riscv_token_get_type_size(const RISCVTokenType type) {
-    error(
-      FATAL,
-      (type >= lexer::TOKEN_BYTE && type <= lexer::TOKEN_WORD) || type == lexer::TOKEN_STRING,
-      "lexer - type is outside function domain: ",
-      __FUNCTION__,
-      __FILE__,
-      __LINE__
-    );
-    return type == TOKEN_STRING ? 1 : (1 << (type - lexer::TOKEN_BYTE));
-  }
-
-  inline uint8_t riscv_token_get_reg(const RISCVTokenType type) {
-    error(
-      FATAL,
-      !riscv_token_is_reg(type),
-      "lexer - type is outside of function domain: ",
-      __FUNCTION__,
-      __FILE__,
-      __LINE__
-    );
-    return (uint8_t)(type - TOKEN_REG_X0);
-  }
-
-  inline bool riscv_token_is_reg(const RISCVTokenType type) {
-    return type >= TOKEN_REG_X0 && type <= TOKEN_REG_X31;
-  }
-
-  inline bool riscv_token_is_inst(const RISCVTokenType type) {
-    return type >= TOKEN_INST_32IM_NOP && type < TOKEN_INST_32IM_MAX;
-  }
-
-  inline bool riscv_token_is_param(const RISCVTokenType type) {
-    return riscv_token_is_reg(type) || type == TOKEN_LIT_NUMBER || type == TOKEN_SYMBOL;
-  }
-
-  inline bool riscv_token_is_lit(const RISCVTokenType type) {
-    return type == TOKEN_LIT_NUMBER || type == TOKEN_LIT_STRING;
-  }
-
-  inline bool riscv_token_is_symbol_type(const RISCVTokenType type) {
-    return type == TOKEN_BYTE || type == TOKEN_HALF || type == TOKEN_WORD || type == TOKEN_STRING;
-  }
 }
 
 void _lexer_scan_line(
