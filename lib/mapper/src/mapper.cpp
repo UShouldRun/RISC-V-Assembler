@@ -988,7 +988,39 @@ namespace mapper {
   }
 
   void write(const char* filename, const RISCVEncoding& encoding) {
-    
+    const uint64_t len_filename = strlen(filename);
+    error(
+      FATAL,
+      len_filename < 2,
+      "mapper - filename as length less than 2 (it should end in \".s\"): ",
+      filename,
+      __FILE__,
+      __LINE__
+    );
+
+    char* output_filename = (char*)malloc((len_filename + 3) * sizeof(char));
+    error(FATAL, output_filename == nullptr, "mapper - could not allocate memory for output filename", "", __FILE__, __LINE__);
+    strncpy(output_filename, filename, len_filename + 3);
+    output_filename[len_filename - 2] = '.';
+    output_filename[len_filename - 1] = 'b';
+    output_filename[len_filename] = 'i';
+    output_filename[len_filename + 1] = 'n';
+    output_filename[len_filename + 2] = '\0';
+
+    std::ofstream file(output_filename, std::ios::binary);
+    error(FATAL, !file.is_open(), "mapper - could not open output file ", filename, __FILE__, __LINE__);
+    log("mapper - opened output file ", filename, __FILE__, __LINE__);
+
+    file.write(reinterpret_cast<const char*>(&encoding.s_data),  sizeof(uint64_t));
+    file.write(reinterpret_cast<const char*>(&encoding.s_insts), sizeof(uint64_t));
+
+    for (uint64_t i = 0; i < encoding.s_data; i++)
+      file.write(reinterpret_cast<const char*>(&(encoding.data[i])), sizeof(uint32_t));
+    for (uint64_t i = 0; i < encoding.s_insts; i++)
+      file.write(reinterpret_cast<const char*>(&(encoding.insts[i])), sizeof(uint32_t));
+
+    log("mapper - instructions written to the output file", filename, __FILE__, __LINE__);
+    free(output_filename);
   }
 }
 

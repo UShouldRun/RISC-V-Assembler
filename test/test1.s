@@ -1,39 +1,20 @@
-# Basic RISC-V Assembly Test File
-# Tests directives, registers, and basic instructions
-
 .text
-    # Basic arithmetic instructions
-    add x1, x2, x3
-    addi t0, t1, 100
-    sub s0, s1, s2
+    # Load immediate values into registers
+    addi x5, x0, 10     # x5 = 10
+    addi x6, x0, 20     # x6 = 20
     
-    # Load immediate and upper immediate
-    li a0, -42
-    lui t2, 0x10000
-    auipc gp, 0x1000
+    # Add them together
+    add x7, x5, x6      # x7 = x5 + x6 = 30
     
-    # Move operations
-    mv a1, a0
+    # Multiply by 2 (shift left by 1)
+    slli x8, x7, 1      # x8 = x7 << 1 = 60
     
-    # Logical operations
-    and x10, x11, x12
-    andi a2, a3, 0xFF
-    or s3, s4, s5
-    ori t3, t4, 0x0F
-    xor a4, a5, a6
-    xori s6, s7, 0xAA
+    # Subtract original value
+    sub x9, x8, x5      # x9 = x8 - x5 = 50
     
-    # Shift operations
-    sll t5, t6, a7
-    slli s8, s9, 5
-    srl s10, s11, t0
-    srli x28, x29, 3
-    sra x30, x31, t1
-    srai ra, sp, 7
-
-.data
-    # Data section with various data types
-    my_byte: .byte 0x42
-    my_half: .half 0B10010010
-    my_word: .word 0xDEADBEEF
-    my_string: .string "Hello RISC-V World!"
+    # Store result in x10 for system call
+    add x10, x9, x0     # x10 = x9 (copy result)
+    
+    # Exit system call (Linux)
+    addi x17, x0, 93    # System call number for exit (93)
+    ecall               # Make system call

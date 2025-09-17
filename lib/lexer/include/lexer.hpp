@@ -191,7 +191,7 @@ namespace lexer {
   inline uint64_t riscv_token_get_type_size(const RISCVTokenType type) {
     error(
       FATAL,
-      (type >= lexer::TOKEN_BYTE && type <= lexer::TOKEN_WORD) || type == lexer::TOKEN_STRING,
+      !((type >= lexer::TOKEN_BYTE && type <= lexer::TOKEN_WORD) || type == lexer::TOKEN_STRING),
       "lexer - type is outside function domain: ",
       __FUNCTION__,
       __FILE__,
