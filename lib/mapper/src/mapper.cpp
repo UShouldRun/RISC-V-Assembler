@@ -1,20 +1,85 @@
 #include "mapper_private.hpp"
 
 namespace mapper {
-  uint32_t* map_inst2bin(const parser::RISCVAST* ast, uint64_t& s_insts) {
+  uint32_t* map_inst2bin(const parser::RISCVAST* ast, uint64_t& s_insts, const uint64_t s_header, const uint64_t s_data) {
     error(FATAL, ast == nullptr, "mapper - ast is a nullptr in map_inst2bin", "", __FILE__, __LINE__);
 
-    std::unordered_map<const char*, const uint32_t> map;
+    // using this instead of std::string in the unordered_map
+    // in order to save memory
+    auto cstr_hash = [](const char* str) { 
+      std::size_t hash = 0;
+      while (*str) {
+        hash = hash * 31 + *str++;
+      }
+      return hash;
+    };
 
-    for (uint64_t i = 0; i < ast->s_data; i++)
-      map.insert({ ast->data[i].symbol->lit.string, i << 2 });
+    auto cstr_equal = [](const char* a, const char* b) { 
+      return std::strcmp(a, b) == 0; 
+    };
 
-    for (uint64_t i = 0; i < ast->s_text; i++) {
-      if (ast->text[i].inst->type != lexer::TOKEN_SYMBOL)
+    std::unordered_map<const char*, uint32_t, decltype(cstr_hash), decltype(cstr_equal)> map(
+      0,
+      cstr_hash,
+      cstr_equal
+    );
+
+    uint32_t data_cursor = 0;
+    for (uint64_t i = 0; i < ast->s_data; i++) {
+      map.insert({ ast->data[i].symbol->lit.string, data_cursor });
+
+      if (ast->data[i].type->type != lexer::TOKEN_STRING) {
+        data_cursor += lexer::riscv_token_get_type_size(ast->data[i].type->type) * ast->data[i].s_arr;
         continue;
-      map.insert({ ast->text[i].inst->lit.string, i << 2 });
+      }
+
+      for (uint64_t j = 0; j < ast->data[i].s_arr; j++)
+        data_cursor += strlen(ast->data[i].arr[j]->lit.string) + 1;
     }
-    
+
+    // s_data is already align4 according to map_data2bin, as it is the number of words (4 bytes each)
+    // it needs to store the data section
+    const uint32_t text_base = s_header + (s_data << 2);
+
+    uint32_t text_cursor = text_base;
+    for (uint64_t i = 0; i < ast->s_text; i++) {
+      const parser::RISCVASTN_Text* inst = &(ast->text[i]);
+      const lexer::RISCVTokenType type = ast->text[i].inst->type;
+
+      if (!lexer::riscv_token_is_symbol(type)) {
+        text_cursor += 4;
+
+        switch (type) {
+          case lexer::TOKEN_INST_32IM_MOVE_LI: {
+            text_cursor += (inst->f2->lit.number > 0x00000FFF) * 4; // lower bound for load immediate needs one more inst
+            break;
+          }
+          case lexer::TOKEN_INST_32IM_LS_LB:
+          case lexer::TOKEN_INST_32IM_LS_LH:
+          case lexer::TOKEN_INST_32IM_LS_LW: {
+            text_cursor += lexer::riscv_token_is_symbol(inst->f2->type) * 4;
+            break;
+          }
+          case lexer::TOKEN_INST_32IM_MOVE_LA:
+          case lexer::TOKEN_INST_32IM_FC_CALL: {
+            text_cursor += 4;
+            break;
+          }
+          default: { break; }
+        }
+
+        continue;
+      }
+
+      map.insert({ ast->text[i].inst->lit.string, text_cursor });
+    }
+
+    /*
+     * used for debug
+      for (const auto& [label, addr] : map)
+        std::cout << "Label: " << label << " -> 0x" << std::hex << addr << std::endl;
+     * */
+ 
     uint64_t max_s_insts = ast->s_text >= 4 ? ast->s_text : 4;
     uint32_t* insts = (uint32_t*)malloc(max_s_insts * sizeof(uint32_t));
     error(FATAL, insts == nullptr, "mapper - allocation of instruction array returned a nullptr", "", __FILE__, __LINE__);
@@ -25,8 +90,12 @@ namespace mapper {
         insts = (uint32_t*)realloc(insts, max_s_insts * sizeof(uint32_t));
         error(FATAL, insts == nullptr, "mapper - reallocation of instruction array returned a nullptr", "", __FILE__, __LINE__);
       }
+      const uint32_t pc = text_base + (s_insts << 2);
 
       const parser::RISCVASTN_Text* inst = &(ast->text[i]);
+
+      if (lexer::riscv_token_is_symbol(inst->inst->type))
+        continue;
 
       OpType optype = OPTYPE_NONE;
       uint8_t 
@@ -38,26 +107,44 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_NOP: {
           insts[s_insts++] = riscv_map_i_type(
             0x0,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_ADDI
           );
           continue;
         }
 
         case lexer::TOKEN_INST_32IM_MOVE_LA: {
-          const uint32_t addr = map[inst->f2->lit.string];
+          const uint32_t target_addr = map[inst->f2->lit.string];
+          const int32_t offset = (int32_t)riscv_map_relative_addr(pc, target_addr);
+          
+          /*
+           * used for debug
+          std::cout << "LA: pc=0x" << std::hex << pc 
+                    << " target=0x" << target_addr 
+                    << " offset=" << std::dec << offset << std::endl;
+           * */
+                    
+          // Split with proper sign handling
+          int32_t
+            upper = offset & 0xFFFFF000,
+            lower = offset & 0xFFF;
+          
+          // If lower will be sign-extended as negative by addi, compensate upper
+          if (lower & 0x800)
+            upper += 0x1000;
+          
           insts[s_insts++] = riscv_map_u_type(
-            addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            upper,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_i_type(
-            addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lower,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_ADDI
           );
           continue;
@@ -66,17 +153,17 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_MOVE_LI: {
           insts[s_insts++] = riscv_map_i_type(
             inst->f2->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_ADDI
           );
-          if (inst->f2->lit.number <= 0x00000FFF)
+          if (inst->f2->lit.number <= 0x00000FFF) // lower bound for load immediate
             continue;
 
           insts[s_insts++] = riscv_map_u_type(
             inst->f2->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_LUI
           );
           continue;
@@ -97,9 +184,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_MOVE_MV: {
           insts[s_insts++] = riscv_map_i_type(
             0x0,
-            lexer::riscv_token_get_reg(inst->f2->type),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_ADDI
           );
           continue;
@@ -108,10 +195,10 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_ALS_NEG: {
           insts[s_insts++] = riscv_map_r_type(
             0x20,
-            lexer::riscv_token_get_reg(inst->f2->type),
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_SUB
           );
           continue;
@@ -143,9 +230,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_ALS_NOT: {
           insts[s_insts++] = riscv_map_i_type(
             0xFFF,
-            lexer::riscv_token_get_reg(inst->f2->type),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             0x4,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_XORI
           );
           continue;
@@ -309,20 +396,20 @@ namespace mapper {
           optype = OPTYPE_I;
           opcode = OPCODE_LB;
           funct3 = FUNCT3_LB;
-          if (inst->f2->type != lexer::TOKEN_SYMBOL)
+          if (!lexer::riscv_token_is_symbol(inst->f2->type))
             break;
 
           const uint32_t addr = map[inst->f2->lit.string];
           insts[s_insts++] = riscv_map_u_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_i_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_LB,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_LB
           );
           continue;
@@ -332,20 +419,20 @@ namespace mapper {
           optype = OPTYPE_I;
           opcode = OPCODE_LH;
           funct3 = FUNCT3_LH;
-          if (inst->f2->type != lexer::TOKEN_SYMBOL)
+          if (!lexer::riscv_token_is_symbol(inst->f2->type))
             break;
 
           const uint32_t addr = map[inst->f2->lit.string];
           insts[s_insts++] = riscv_map_u_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_i_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_LH,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_LH
           );
           continue;
@@ -355,20 +442,20 @@ namespace mapper {
           optype = OPTYPE_I;
           opcode = OPCODE_LW;
           funct3 = FUNCT3_LW;
-          if (inst->f2->type != lexer::TOKEN_SYMBOL)
+          if (!lexer::riscv_token_is_symbol(inst->f2->type))
             break;
-
+ 
           const uint32_t addr = map[inst->f2->lit.string];
           insts[s_insts++] = riscv_map_u_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_i_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_LW,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_LW
           );
           continue;
@@ -392,19 +479,19 @@ namespace mapper {
           optype = OPTYPE_S;
           opcode = OPCODE_SB;
           funct3 = FUNCT3_SB;
-          if (inst->f2->type != lexer::TOKEN_SYMBOL)
+          if (!lexer::riscv_token_is_symbol(inst->f2->type))
             break;
 
           const uint32_t addr = map[inst->f2->lit.string];
           insts[s_insts++] = riscv_map_u_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f3->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_s_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f3->type),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SB,
             OPCODE_SB
           );
@@ -415,19 +502,19 @@ namespace mapper {
           optype = OPTYPE_S;
           opcode = OPCODE_SH;
           funct3 = FUNCT3_SH;
-          if (inst->f2->type != lexer::TOKEN_SYMBOL)
+          if (!lexer::riscv_token_is_symbol(inst->f2->type))
             break;
 
           const uint32_t addr = map[inst->f2->lit.string];
           insts[s_insts++] = riscv_map_u_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f3->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_s_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f3->type),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SH,
             OPCODE_SH
           );
@@ -438,19 +525,19 @@ namespace mapper {
           optype = OPTYPE_S;
           opcode = OPCODE_SW;
           funct3 = FUNCT3_SW;
-          if (inst->f2->type != lexer::TOKEN_SYMBOL)
+          if (!lexer::riscv_token_is_symbol(inst->f2->type))
             break;
 
           const uint32_t addr = map[inst->f2->lit.string];
           insts[s_insts++] = riscv_map_u_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f3->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_s_type(
             addr,
-            lexer::riscv_token_get_reg(inst->f3->type),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SW,
             OPCODE_SW
           );
@@ -490,9 +577,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_CP_SEQZ: {
           insts[s_insts++] = riscv_map_i_type(
             1,
-            lexer::riscv_token_get_reg(inst->f2->type),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SLTIU,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_SLTIU
           );
           continue;
@@ -501,10 +588,10 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_CP_SNEZ: {
           insts[s_insts++] = riscv_map_r_type(
             FUNCT7_SLTU,
-            lexer::riscv_token_get_reg(inst->f2->type),
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SLTU,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_SLTU
           );
           continue;
@@ -513,10 +600,10 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_CP_SLTZ: {
           insts[s_insts++] = riscv_map_r_type(
             FUNCT7_SLT,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
-            lexer::riscv_token_get_reg(inst->f2->type),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SLT,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_SLT
           );
           continue;
@@ -525,10 +612,10 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_CP_SGTZ: {
           insts[s_insts++] = riscv_map_r_type(
             FUNCT7_SLT,
-            lexer::riscv_token_get_reg(inst->f2->type),
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_SLT,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_SLT
           );
           continue;
@@ -549,10 +636,14 @@ namespace mapper {
         }
 
         case lexer::TOKEN_INST_32IM_FC_BGT: {
+          const uint32_t offset = lexer::riscv_token_is_symbol(inst->f3->type) 
+            ? riscv_map_relative_addr(pc, map[inst->f3->lit.string])
+            : inst->f3->lit.number;
+
           insts[s_insts++] = riscv_map_b_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
-            lexer::riscv_token_get_reg(inst->f2->type),
+            offset,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BLT,
             OPCODE_BLT
           );
@@ -567,10 +658,14 @@ namespace mapper {
         }
 
         case lexer::TOKEN_INST_32IM_FC_BLE: {
+          const uint32_t offset = lexer::riscv_token_is_symbol(inst->f3->type) 
+            ? riscv_map_relative_addr(pc, map[inst->f3->lit.string])
+            : inst->f3->lit.number;
+
           insts[s_insts++] = riscv_map_b_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
-            lexer::riscv_token_get_reg(inst->f2->type),
+            offset,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BGE,
             OPCODE_BGE
           );
@@ -585,10 +680,14 @@ namespace mapper {
         }
 
         case lexer::TOKEN_INST_32IM_FC_BGTU: {
+          const uint32_t offset = lexer::riscv_token_is_symbol(inst->f3->type) 
+            ? riscv_map_relative_addr(pc, map[inst->f3->lit.string])
+            : inst->f3->lit.number;
+
           insts[s_insts++] = riscv_map_b_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
-            lexer::riscv_token_get_reg(inst->f2->type),
+            offset,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BLTU,
             OPCODE_BLTU
           );
@@ -610,10 +709,14 @@ namespace mapper {
         }
 
         case lexer::TOKEN_INST_32IM_FC_BLEU: {
+          const uint32_t offset = lexer::riscv_token_is_symbol(inst->f3->type) 
+            ? riscv_map_relative_addr(pc, map[inst->f3->lit.string])
+            : inst->f3->lit.number;
+
           insts[s_insts++] = riscv_map_b_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
-            lexer::riscv_token_get_reg(inst->f2->type),
+            offset,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BGEU,
             OPCODE_BGEU
           );
@@ -622,9 +725,9 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_BEQZ: {
           insts[s_insts++] = riscv_map_b_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            riscv_map_relative_addr(pc, map[inst->f2->lit.string]),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BEQ,
             OPCODE_BEQ
           );
@@ -633,9 +736,9 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_BNEZ: {
           insts[s_insts++] = riscv_map_b_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            riscv_map_relative_addr(pc, map[inst->f2->lit.string]),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BNE,
             OPCODE_BNE
           );
@@ -644,9 +747,9 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_BLEZ: {
           insts[s_insts++] = riscv_map_b_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            riscv_map_relative_addr(pc, map[inst->f2->lit.string]),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BGE,
             OPCODE_BGE
           );
@@ -655,9 +758,9 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_BGEZ: {
           insts[s_insts++] = riscv_map_b_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            riscv_map_relative_addr(pc, map[inst->f2->lit.string]),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BGE,
             OPCODE_BGE
           );
@@ -666,9 +769,9 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_BLTZ: {
           insts[s_insts++] = riscv_map_b_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            riscv_map_relative_addr(pc, map[inst->f2->lit.string]),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BLT,
             OPCODE_BLT
           );
@@ -677,9 +780,9 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_BGTZ: {
           insts[s_insts++] = riscv_map_b_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            riscv_map_relative_addr(pc, map[inst->f2->lit.string]),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_BLT,
             OPCODE_BLT
           );
@@ -688,8 +791,8 @@ namespace mapper {
 
         case lexer::TOKEN_INST_32IM_FC_J: {
           insts[s_insts++] = riscv_map_j_type(
-            inst->f1->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            riscv_map_relative_addr(pc, map[inst->f1->lit.string]),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_JAL
           );
           continue;
@@ -702,8 +805,8 @@ namespace mapper {
             break;
 
           insts[s_insts++] = riscv_map_j_type(
-            inst->f1->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1),
+            riscv_map_relative_addr(pc, map[inst->f1->lit.string]),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_JAL
           );
           continue;
@@ -712,9 +815,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_FC_JR: {
           insts[s_insts++] = riscv_map_i_type(
             0x0,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_JALR,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_JALR
           );
           continue;
@@ -728,9 +831,9 @@ namespace mapper {
 
           insts[s_insts++] = riscv_map_i_type(
             0x0,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_JALR,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_JALR
           );
           continue;
@@ -739,14 +842,14 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_FC_CALL: {
           insts[s_insts++] = riscv_map_u_type(
             inst->f1->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_AUIPC
           );
           insts[s_insts++] = riscv_map_i_type(
             inst->f1->lit.number,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_JALR,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_JALR
           );
           continue;
@@ -755,9 +858,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_FC_RET: {
           insts[s_insts++] = riscv_map_i_type(
             0x0,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X1, __FUNCTION__, __FILE__, __LINE__),
             FUNCT3_JALR,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_JALR
           );
           continue;
@@ -766,9 +869,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_OS_ECALL: {
           insts[s_insts++] = riscv_map_i_type(
             IMM_ECALL,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_OS
           );
           continue;
@@ -777,9 +880,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_OS_EBREAK: {
           insts[s_insts++] = riscv_map_i_type(
             IMM_EBREAK,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_OS
           );
           continue;
@@ -788,9 +891,9 @@ namespace mapper {
         case lexer::TOKEN_INST_32IM_OS_SRET: {
           insts[s_insts++] = riscv_map_i_type(
             IMM_SRET,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             0x0,
-            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0),
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
             OPCODE_OS
           );
           continue;
@@ -829,11 +932,15 @@ namespace mapper {
         }
 
         case lexer::TOKEN_INST_32IM_LNS_SQT: {
-          optype = OPTYPE_R;
-          opcode = OPCODE_LNS_SQT;
-          funct3 = FUNCT3_LNS_SQT;
-          funct7 = FUNCT7_LNS_SQT;
-          break;
+          insts[s_insts++] = riscv_map_r_type(
+            FUNCT7_LNS_SQT,
+            lexer::riscv_token_get_reg(lexer::TOKEN_REG_X0, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
+            FUNCT3_LNS_SQT,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
+            OPCODE_LNS_SQT
+          );
+          continue;
         }
 
         default: {
@@ -852,39 +959,51 @@ namespace mapper {
         case OPTYPE_R: {
           insts[s_insts++] = riscv_map_r_type(
             funct7,
-            lexer::riscv_token_get_reg(inst->f3->type),
-            lexer::riscv_token_get_reg(inst->f2->type),
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
             funct3,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             opcode
           );
           break;
         }
         case OPTYPE_I: {
+          const bool                  load_or_jalr = (
+            lexer::riscv_token_is_inst_load(inst->inst->type) ||
+            inst->inst->type == lexer::TOKEN_INST_32IM_FC_JALR
+          );
+
+          const int32_t               imm = load_or_jalr ? inst->f2->lit.number : inst->f3->lit.number;
+          const lexer::RISCVTokenType rs1 = load_or_jalr ? inst->f3->type       : inst->f2->type;
+
           insts[s_insts++] = riscv_map_i_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f2->type),
+            imm,
+            lexer::riscv_token_get_reg(rs1, __FUNCTION__, __FILE__, __LINE__),
             funct3,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             opcode
           );
           break;
         }
         case OPTYPE_S: {
           insts[s_insts++] = riscv_map_s_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f2->type),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            inst->f2->lit.number,
+            lexer::riscv_token_get_reg(inst->f3->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             funct3,
             opcode
           );
           break;
         }
         case OPTYPE_B: {
+          const uint32_t offset = lexer::riscv_token_is_symbol(inst->f3->type) 
+            ? riscv_map_relative_addr(pc, map[inst->f3->lit.string])
+            : inst->f3->lit.number;
+
           insts[s_insts++] = riscv_map_b_type(
-            inst->f3->lit.number,
-            lexer::riscv_token_get_reg(inst->f2->type),
-            lexer::riscv_token_get_reg(inst->f1->type),
+            offset,
+            lexer::riscv_token_get_reg(inst->f2->type, __FUNCTION__, __FILE__, __LINE__),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             funct3,
             opcode
           );
@@ -893,15 +1012,19 @@ namespace mapper {
         case OPTYPE_U: {
           insts[s_insts++] = riscv_map_u_type(
             inst->f2->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             opcode
           );
           break;
         }
         case OPTYPE_J: {
+          const uint32_t offset = lexer::riscv_token_is_symbol(inst->f2->type) 
+            ? riscv_map_relative_addr(pc, map[inst->f2->lit.string])
+            : inst->f2->lit.number;
+
           insts[s_insts++] = riscv_map_j_type(
-            inst->f2->lit.number,
-            lexer::riscv_token_get_reg(inst->f1->type),
+            offset,
+            lexer::riscv_token_get_reg(inst->f1->type, __FUNCTION__, __FILE__, __LINE__),
             opcode
           );
           break;
@@ -936,7 +1059,7 @@ namespace mapper {
         total_s_data += strlen(ast->data[i].arr[j]->lit.string) + 1;
     }
 
-    s_data = (s_data >> 2) + ((s_data & 0b11) > 0);
+    s_data = (total_s_data >> 2) + ((total_s_data & 0b11) > 0); // number of words + padding to allocate
     uint32_t* data = (uint32_t*)malloc(s_data * sizeof(uint32_t));
     error(FATAL, data == nullptr, "mapper - allocation of data array returned a nullptr in ", __FUNCTION__, __FILE__, __LINE__);
 
@@ -961,7 +1084,7 @@ namespace mapper {
       }
 
       const uint64_t 
-        c = lexer::riscv_token_get_type_size(ast->data[i].type->type),
+        c      = lexer::riscv_token_get_type_size(ast->data[i].type->type),
         s_word = lexer::riscv_token_get_type_size(lexer::TOKEN_WORD),
         s_half = lexer::riscv_token_get_type_size(lexer::TOKEN_HALF);
 
@@ -1028,13 +1151,14 @@ inline uint32_t riscv_map_r_type(
   const uint8_t funct7, const uint8_t rb, const uint8_t ra,
   const uint8_t funct3, const uint8_t rd, const uint8_t opcode
 ) {
+  // R-type: funct7[31:25], rs2[24:20], rs1[19:15], funct3[14:12], rd[11:7], opcode[6:0]
   return (
-    (funct7 << 25) ^
-    ((0x1F & rb) << 20) ^
-    ((0x1F & ra) << 15) ^
-    ((0x7 & funct3) << 12) ^
-    ((0x1F & rd) << 7) ^
-    (0x7F & opcode)
+    ((uint32_t)funct7 << 25) |
+    ((uint32_t)(rb & 0x1F) << 20) |
+    ((uint32_t)(ra & 0x1F) << 15) |
+    ((uint32_t)(funct3 & 0x7) << 12) |
+    ((uint32_t)(rd & 0x1F) << 7) |
+    ((uint32_t)(opcode & 0x7F))
   );
 }
 
@@ -1042,12 +1166,13 @@ inline uint32_t riscv_map_i_type(
   const uint16_t imm, const uint8_t ra, const uint8_t funct3,
   const uint8_t rd, const uint8_t opcode
 ) {
+  // I-type: imm[31:20], rs1[19:15], funct3[14:12], rd[11:7], opcode[6:0]
   return (
-    (imm << 20) ^
-    ((0x1F & ra) << 15) ^
-    ((0x7 & funct3) << 12) ^
-    ((0x1F & rd) << 7) ^
-    (0x7F & opcode)
+    ((uint32_t)(imm & 0xFFF) << 20) |
+    ((uint32_t)(ra & 0x1F) << 15) |
+    ((uint32_t)(funct3 & 0x7) << 12) |
+    ((uint32_t)(rd & 0x1F) << 7) |
+    ((uint32_t)(opcode & 0x7F))
   );
 }
 
@@ -1055,12 +1180,17 @@ inline uint32_t riscv_map_s_type(
   const uint16_t imm, const uint8_t rb, const uint8_t ra,
   const uint8_t funct3, const uint8_t opcode
 ) {
+  // S-type: imm[11:5] -> [31:25], rs2[24:20], rs1[19:15], funct3[14:12], imm[4:0] -> [11:7], opcode[6:0]
+  const uint32_t imm11_5 = (imm >> 5) & 0x7F;
+  const uint32_t imm4_0  = imm & 0x1F;
+
   return (
-    ((imm >> 5) << 25) ^
-    ((ra & 0x1F) << 15) ^
-    ((funct3 & 0x7) << 12) ^
-    ((imm & 0x1F) << 7) ^
-    (opcode & 0x7F)
+    (imm11_5 << 25) |
+    ((uint32_t)(rb & 0x1F) << 20) |
+    ((uint32_t)(ra & 0x1F) << 15) |
+    ((uint32_t)(funct3 & 0x7) << 12) |
+    (imm4_0 << 7) |
+    ((uint32_t)(opcode & 0x7F))
   );
 }
 
@@ -1068,27 +1198,51 @@ inline uint32_t riscv_map_b_type(
   const uint16_t imm, const uint8_t rb, const uint8_t ra,
   const uint8_t funct3, const uint8_t opcode
 ) {
+  // B-type: imm[12] -> 31, imm[10:5] -> 30:25, rs2 -> 24:20, rs1 -> 19:15, funct3 -> 14:12, imm[4:1] -> 11:8, imm[11] -> 7, opcode -> 6:0
+  const uint32_t imm12   = (imm >> 12) & 0x1;
+  const uint32_t imm10_5 = (imm >> 5)  & 0x3F;
+  const uint32_t imm4_1  = (imm >> 1)  & 0xF;
+  const uint32_t imm11   = (imm >> 11) & 0x1;
+
   return (
-    (((((imm >> 12) & 1) << 6) | (imm >> 5)) << 25) ^
-    ((ra & 0x1F) << 15) ^
-    ((funct3 & 0x7) << 12) ^
-    ((((imm & 0x1F) < 1) & ((imm >> 11) & 1)) << 7) ^
-    (opcode & 0x7F)
+    (imm12   << 31) |
+    (imm10_5 << 25) |
+    ((uint32_t)(rb & 0x1F) << 20) |
+    ((uint32_t)(ra & 0x1F) << 15) |
+    ((uint32_t)(funct3 & 0x7) << 12) |
+    (imm4_1  << 8) |
+    (imm11   << 7) |
+    ((uint32_t)(opcode & 0x7F))
   );
 }
 
 inline uint32_t riscv_map_u_type(const uint32_t imm, const uint8_t rd, const uint8_t opcode) {
+  // U-type: imm[31:12], rd[11:7], opcode[6:0]
   return (
-    (imm & 0xFFFFF000) ^
-    ((rd & 0x1F) << 5) ^
-    (opcode & 0x7F)
+    (imm & 0xFFFFF000) |
+    ((uint32_t)(rd & 0x1F) << 7) |
+    ((uint32_t)(opcode & 0x7F))
   );
 }
 
 inline uint32_t riscv_map_j_type(const uint32_t imm, const uint8_t rd, const uint8_t opcode) {
+  // J-type: imm[20] -> 31, imm[10:1] -> 30:21, imm[11] -> 20, imm[19:12] -> 19:12, rd -> 11:7, opcode -> 6:0
+  const uint32_t imm20    = (imm >> 20) & 0x1;
+  const uint32_t imm10_1  = (imm >> 1)  & 0x3FF;
+  const uint32_t imm11    = (imm >> 11) & 0x1;
+  const uint32_t imm19_12 = (imm >> 12) & 0xFF;
+
   return (
-    (((imm & 0x00100000) ^ ((imm & 0x00007FE) << 12) ^ ((imm & 0x00008000) >> 2) ^ (imm & 0x00FF000)) << 12) ^
-    ((rd & 0x1F) << 5) ^
-    (opcode & 0x7F)
+    (imm20    << 31) |
+    (imm10_1  << 21) |
+    (imm11    << 20) |
+    (imm19_12 << 12) |
+    ((uint32_t)(rd & 0x1F) << 7) |
+    ((uint32_t)(opcode & 0x7F))
   );
+}
+
+inline uint32_t riscv_map_relative_addr(const uint32_t pc, const uint32_t addr) {
+  // addresses should be multiples of 4 already
+  return static_cast<uint32_t>(((int32_t)addr - (int32_t)pc));
 }

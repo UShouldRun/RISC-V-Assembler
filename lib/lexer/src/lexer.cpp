@@ -18,8 +18,13 @@ namespace lexer {
     }
 
     if (s_tokens != max_s_tokens) {
-      tokens = (lexer::RISCVToken*)realloc(tokens, s_tokens * sizeof(struct riscv_token));
-      error(FATAL, tokens == nullptr, "lexer - tokens array is a nullptr after final reallocation", "", __FILE__, __LINE__);
+      if (s_tokens == 0) {
+        free(tokens);
+        tokens = nullptr;
+      } else {
+        tokens = (lexer::RISCVToken*)realloc(tokens, s_tokens * sizeof(struct riscv_token));
+        error(FATAL, tokens == nullptr, "lexer - tokens array is a nullptr after final reallocation", "", __FILE__, __LINE__);
+      }
     }
 
     file.close();
@@ -75,10 +80,10 @@ namespace lexer {
       case lexer::TOKEN_LIT_STRING:           return "TOKEN_LIT_STRING";
       case lexer::TOKEN_LIT_NUMBER:           return "TOKEN_LIT_NUMBER";
       case lexer::TOKEN_SYMBOL:               return "TOKEN_SYMBOL";
-      case lexer::TOKEN_COLON:                 return "TOKEN_COLON";
-      case lexer::TOKEN_COMMA:                 return "TOKEN_COMMA";
-      case lexer::TOKEN_LPAREN:                return "TOKEN_LPAREN";
-      case lexer::TOKEN_RPAREN:                return "TOKEN_RPAREN";
+      case lexer::TOKEN_COLON:                return "TOKEN_COLON";
+      case lexer::TOKEN_COMMA:                return "TOKEN_COMMA";
+      case lexer::TOKEN_LPAREN:               return "TOKEN_LPAREN";
+      case lexer::TOKEN_RPAREN:               return "TOKEN_RPAREN";
 
       case lexer::TOKEN_REG_X0:               return "TOKEN_REG_X0 (zero/x0)";
       case lexer::TOKEN_REG_X1:               return "TOKEN_REG_X1 (ra/x1)";
@@ -199,7 +204,7 @@ namespace lexer {
       case lexer::TOKEN_INST_32IM_LNS_DIV:    return "TOKEN_INST_32IM_LNS_DIV";
       case lexer::TOKEN_INST_32IM_LNS_SQT:    return "TOKEN_INST_32IM_LNS_SQT";
 
-      default:                         return "UNKNOWN_TOKEN_TYPE";
+      default:                                return "UNKNOWN_TOKEN_TYPE";
     }
   }
 }

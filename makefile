@@ -28,15 +28,43 @@ RESET = \033[0m
 all: $(BUILD_DIR) $(TARGET)
 
 test: all
-	@echo "$(BLUE)---Running tests---$(RESET)"
-	@for f in test/*; do \
-		build/riscv "$$f"; \
-		if [ "$$?" -eq 0 ]; then \
-			echo "$(GREEN)Test $$f passed$(RESET)"; \
+	@echo "$(BLUE)================= Running tests =================$(RESET)"
+	@total=0; passed=0; failed=0; \
+	for f in test/*; do \
+		total=$$((total+1)); \
+		name=$$(basename "$$f"); \
+		num=$$(echo "$$name" | sed 's/[^0-9]//g'); \
+		expected="test/true_test$$num.bin"; \
+		output="test/test$$num.bin"; \
+		printf "$(BLUE)Test %s: $(RESET)" "$$name"; \
+		$(TARGET) "$$f" > "test/test$$num.log" 2>&1; \
+		status=$$?; \
+		if [ -f "$$expected" ]; then \
+			if diff "$$output" "$$expected" > /dev/null; then \
+				echo "$(GREEN)PASSED$(RESET)"; \
+				passed=$$((passed+1)); \
+			else \
+				echo "$(RED)FAILED (diff mismatch)$(RESET)"; \
+				failed=$$((failed+1)); \
+			fi; \
 		else \
-			echo "$(RED)Test $$f failed$(RESET)"; \
+			if [ $$status -eq 0 ]; then \
+				echo "$(GREEN)PASSED$(RESET)"; \
+				passed=$$((passed+1)); \
+			else \
+				echo "$(RED)FAILED$(RESET)"; \
+				failed=$$((failed+1)); \
+			fi; \
 		fi; \
-	done
+	done; \
+	echo "$(BLUE)=================================================$(RESET)"; \
+	echo "$(GREEN)PASSED $$passed/$$total tests$(RESET)"; \
+	if [ $$failed -ne 0 ]; then \
+		echo "$(RED)$$failed tests failed$(RESET)"; \
+		exit 1; \
+	else \
+		echo "$(GREEN)All tests passed ✔$(RESET)"; \
+	fi
 
 $(BUILD_DIR):
 	mkdir -p $@

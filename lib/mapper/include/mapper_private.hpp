@@ -132,22 +132,22 @@ typedef enum optype {
 #define OPCODE_SLTIU   0b0010011 
 #define FUNCT3_SLTIU   0x3
 
-#define OPCODE_BEQ     0b00011 
+#define OPCODE_BEQ     0b1100011 
 #define FUNCT3_BEQ     0x0
  
-#define OPCODE_BNE     0b00011 
+#define OPCODE_BNE     0b1100011 
 #define FUNCT3_BNE     0x1
 
-#define OPCODE_BGE     0b00011 
+#define OPCODE_BGE     0b1100011 
 #define FUNCT3_BGE     0x5
 
-#define OPCODE_BLT     0b00011 
+#define OPCODE_BLT     0b1100011 
 #define FUNCT3_BLT     0x4
 
-#define OPCODE_BGEU    0b00011 
+#define OPCODE_BGEU    0b1100011 
 #define FUNCT3_BGEU    0x7
  
-#define OPCODE_BLTU    0b00011 
+#define OPCODE_BLTU    0b1100011 
 #define FUNCT3_BLTU    0x6
 
 #define OPCODE_JAL     0b1101111
@@ -186,5 +186,7 @@ inline uint32_t riscv_map_s_type (const uint16_t, const uint8_t, const uint8_t, 
 inline uint32_t riscv_map_b_type (const uint16_t, const uint8_t, const uint8_t, const uint8_t, const uint8_t);
 inline uint32_t riscv_map_u_type (const uint32_t, const uint8_t, const uint8_t);
 inline uint32_t riscv_map_j_type (const uint32_t, const uint8_t, const uint8_t);
+
+inline uint32_t riscv_map_relative_addr (const uint32_t, const uint32_t);
 
 #endif // !__MAPPER_PRIVATE_H__

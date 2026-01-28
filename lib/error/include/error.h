@@ -1,9 +1,9 @@
-#ifndef __ERROR_H_
-#define __ERROR_H_
+#ifndef __ERROR_H__
+#define __ERROR_H__
 
 #include <iostream>
 
-constexpr bool DEBUG = false;
+constexpr bool DEBUG = true;
 constexpr bool FATAL = true;
 constexpr bool ERROR = false;
 
@@ -16,14 +16,15 @@ constexpr bool ERROR = false;
         exit(1); \
       } \
     } \
-  } while (0)
+  } while (0);
 
 #define log(msg, var, file, line) \
   do { \
-    if constexpr (DEBUG) { \
-      std::cout << "\033[036m[INFO]\033[0m: " << msg << var \
-                << " (in " << file << " at line " << line << ")\n"; \
+    if (DEBUG) { \
+      std::cerr << "\033[036m[INFO]\033[0m: " << msg << var \
+                << " (in " << file << " at line " << line << ")\n" \
+                << std::flush; \
     } \
-  } while(0)
+  } while (0);
 
-#endif // !__ERROR_H_
+#endif // !__ERROR_H__

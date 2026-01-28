@@ -8,7 +8,7 @@
 namespace mapper {
   typedef struct riscv_encoding RISCVEncoding;
 
-  uint32_t* map_inst2bin (const parser::RISCVAST*, uint64_t&);
+  uint32_t* map_inst2bin (const parser::RISCVAST*, uint64_t&, const uint64_t, const uint64_t);
   uint32_t* map_data2bin (const parser::RISCVAST*, uint64_t&);
   void      write        (const char*, const RISCVEncoding&);
 

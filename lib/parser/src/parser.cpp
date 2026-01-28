@@ -13,7 +13,7 @@ namespace parser {
     ast->data  = nullptr;
     ast->error = false;
     ast->s_text = ast->s_data = 0;
-    log("lexer - initialized ast", "", __FILE__, __LINE__);
+    log("parser - initialized ast", "", __FILE__, __LINE__);
 
     uint64_t i = 0;
     if (tokens[i].type == lexer::TOKEN_TEXT) {
@@ -33,7 +33,7 @@ namespace parser {
       );
     }
     
-    log("lexer - returning ast", "", __FILE__, __LINE__);
+    log("parser - returning ast", "", __FILE__, __LINE__);
     return ast;
   }
 
@@ -432,7 +432,7 @@ void _parser_parse_text(
   );
 
   parser::RISCVAST* _ast = *ast;
-  log("lexer - parsing .text", "", __FILE__, __LINE__);
+  log("parser - parsing .text", "", __FILE__, __LINE__);
 
   i++;
   for (uint64_t incr = 0; i < s_tokens; i += incr) {
@@ -445,7 +445,7 @@ void _parser_parse_text(
       max_s_text <<= 1;
       _ast = (parser::RISCVAST*)realloc(_ast, sizeof(parser::riscv_ast) + max_s_text * sizeof(parser::riscv_astn_text));
       error(FATAL, _ast == nullptr, "parser - reallocation of RISCVAST* returned a nullptr", "", __FILE__, __LINE__);
-      log("lexer - reallocated text array", "", __FILE__, __LINE__);
+      log("parser - reallocated text array", "", __FILE__, __LINE__);
     }
 
     incr = 1;
@@ -470,7 +470,7 @@ void _parser_parse_text(
             .f4     = nullptr
           };
           incr = 2;
-          log("lexer - parsed TOKEN_SYMBOL rule ", tokens[i].lit.string, tokens[i].filename, tokens[i].line);
+          log("parser - parsed TOKEN_SYMBOL rule ", tokens[i].lit.string, tokens[i].filename, tokens[i].line);
         }
 
         break;
@@ -490,7 +490,7 @@ void _parser_parse_text(
         };
         incr = 1;
         log(
-          "lexer - parsed zero arg instruction rule ",
+          "parser - parsed zero arg instruction rule ",
           lexer::riscv_token_get_type_string(tokens[i].type),
           tokens[i].filename,
           tokens[i].line
@@ -521,7 +521,7 @@ void _parser_parse_text(
           };
           incr = 2;
           log(
-            "lexer - parsed one arg instruction rule ",
+            "parser - parsed one arg instruction rule ",
             lexer::riscv_token_get_type_string(tokens[i].type),
             tokens[i].filename,
             tokens[i].line
@@ -564,7 +564,7 @@ void _parser_parse_text(
             .f4     = nullptr
           };
           log(
-            "lexer - parsed one/two arg instruction rule ",
+            "parser - parsed one/two arg instruction rule ",
             lexer::riscv_token_get_type_string(tokens[i].type),
             tokens[i].filename,
             tokens[i].line
@@ -617,7 +617,7 @@ void _parser_parse_text(
           };
           incr = 4;
           log(
-            "lexer - parsed two arg instruction rule ",
+            "parser - parsed two arg instruction rule ",
             lexer::riscv_token_get_type_string(tokens[i].type),
             tokens[i].filename,
             tokens[i].line
@@ -695,7 +695,7 @@ void _parser_parse_text(
           };
           incr = 6;
           log(
-            "lexer - parsed three arg instruction rule ",
+            "parser - parsed three arg instruction rule ",
             lexer::riscv_token_get_type_string(tokens[i].type),
             tokens[i].filename,
             tokens[i].line
@@ -766,7 +766,7 @@ void _parser_parse_text(
             incr = 4;
           }
           log(
-            "lexer - parsed load/store instruction rule ",
+            "parser - parsed load/store instruction rule ",
             lexer::riscv_token_get_type_string(tokens[i].type),
             tokens[i].filename,
             tokens[i].line
@@ -815,7 +815,7 @@ void _parser_parse_data(
       *filename    = tokens[i].filename;
     uint32_t line = tokens[i].line;
     log(
-      "lexer - parsing symbol ",
+      "parser - parsing symbol ",
       symbol,
       filename,
       line
@@ -827,7 +827,7 @@ void _parser_parse_data(
         i + 3 < s_tokens && 
         tokens[i].type == lexer::TOKEN_SYMBOL &&
         tokens[i + 1].type == lexer::TOKEN_COLON &&
-        lexer::riscv_token_is_symbol_type(tokens[i + 2].type) &&
+        lexer::riscv_token_is_data_type(tokens[i + 2].type) &&
         lexer::riscv_token_is_lit(tokens[i + 3].type)
       ),
       "parser - invalid grammatical structure in .data: did not follow the convention \"<symbol>: .<type> <data>\"",
@@ -881,7 +881,7 @@ void _parser_parse_data(
     }
 
     log(
-      "lexer - parsed symbol ",
+      "parser - parsed symbol ",
       symbol,
       filename,
       line

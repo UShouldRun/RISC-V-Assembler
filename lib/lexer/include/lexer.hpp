@@ -170,18 +170,20 @@ namespace lexer {
   const char*     riscv_token_get_type_string (const RISCVTokenType);
   
   inline uint64_t riscv_token_get_type_size   (const RISCVTokenType);
-  inline uint8_t  riscv_token_get_reg         (const RISCVTokenType);
+  inline uint8_t  riscv_token_get_reg         (const RISCVTokenType, const char*, const char*, const uint32_t);
 
   inline bool     riscv_token_is_reg          (const RISCVTokenType);
   inline bool     riscv_token_is_inst         (const RISCVTokenType);
+  inline bool     riscv_token_is_inst_load    (const RISCVTokenType);
   inline bool     riscv_token_is_param        (const RISCVTokenType);
   inline bool     riscv_token_is_lit          (const RISCVTokenType);
-  inline bool     riscv_token_is_symbol_type  (const RISCVTokenType);
+  inline bool     riscv_token_is_data_type    (const RISCVTokenType);
+  inline bool     riscv_token_is_symbol       (const RISCVTokenType);
 
   struct riscv_token {
     RISCVTokenType type;
     union {
-      char*    string;
+      char*   string;
       int32_t number;
     } lit;
     uint32_t line, start, end;
@@ -200,14 +202,14 @@ namespace lexer {
     return type == TOKEN_STRING ? 1 : (1 << (type - lexer::TOKEN_BYTE));
   }
 
-  inline uint8_t riscv_token_get_reg(const RISCVTokenType type) {
+  inline uint8_t riscv_token_get_reg(const RISCVTokenType type, const char* func, const char* file, const uint32_t line) {
     error(
       FATAL,
       !riscv_token_is_reg(type),
       "lexer - type is outside of function domain: ",
-      __FUNCTION__,
-      __FILE__,
-      __LINE__
+      func,
+      file,
+      line
     );
     return (uint8_t)(type - TOKEN_REG_X0);
   }
@@ -220,6 +222,10 @@ namespace lexer {
     return type >= TOKEN_INST_32IM_NOP && type < TOKEN_INST_32IM_MAX;
   }
 
+  inline bool riscv_token_is_inst_load(const RISCVTokenType type) {
+    return type >= TOKEN_INST_32IM_LS_LB && type <= TOKEN_INST_32IM_LS_LHU;
+  }
+
   inline bool riscv_token_is_param(const RISCVTokenType type) {
     return riscv_token_is_reg(type) || type == TOKEN_LIT_NUMBER || type == TOKEN_SYMBOL;
   }
@@ -228,8 +234,12 @@ namespace lexer {
     return type == TOKEN_LIT_NUMBER || type == TOKEN_LIT_STRING;
   }
 
-  inline bool riscv_token_is_symbol_type(const RISCVTokenType type) {
+  inline bool riscv_token_is_data_type(const RISCVTokenType type) {
     return type == TOKEN_BYTE || type == TOKEN_HALF || type == TOKEN_WORD || type == TOKEN_STRING;
+  }
+
+  inline bool riscv_token_is_symbol(const RISCVTokenType type) {
+    return type == TOKEN_SYMBOL;
   }
 }
 

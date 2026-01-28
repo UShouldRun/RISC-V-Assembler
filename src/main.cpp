@@ -37,7 +37,7 @@ int32_t main(int argc, char* argv[]) {
     };
 
     encoding.data  = mapper::map_data2bin(ast, encoding.s_data);
-    encoding.insts = mapper::map_inst2bin(ast, encoding.s_insts);
+    encoding.insts = mapper::map_inst2bin(ast, encoding.s_insts, 2 * sizeof(uint64_t), encoding.s_data);
     error(
       FATAL,
       encoding.insts == nullptr,
