@@ -1,7 +1,11 @@
 #include "mapper_private.hpp"
 
 namespace mapper {
-  uint32_t* map_inst2bin(const parser::RISCVAST* ast, uint64_t& s_insts, const uint64_t s_header, const uint64_t s_data) {
+  uint32_t* map_inst2bin(
+    const parser::RISCVAST* ast, uint32_t& s_insts,
+    const uint32_t text_addr, uint32_t& data_addr,
+    uint32_t& stack_addr, const uint32_t s_stack
+  ) {
     error(FATAL, ast == nullptr, "mapper - ast is a nullptr in map_inst2bin", "", __FILE__, __LINE__);
 
     // using this instead of std::string in the unordered_map
@@ -24,24 +28,7 @@ namespace mapper {
       cstr_equal
     );
 
-    uint32_t data_cursor = 0;
-    for (uint64_t i = 0; i < ast->s_data; i++) {
-      map.insert({ ast->data[i].symbol->lit.string, data_cursor });
-
-      if (ast->data[i].type->type != lexer::TOKEN_STRING) {
-        data_cursor += lexer::riscv_token_get_type_size(ast->data[i].type->type) * ast->data[i].s_arr;
-        continue;
-      }
-
-      for (uint64_t j = 0; j < ast->data[i].s_arr; j++)
-        data_cursor += strlen(ast->data[i].arr[j]->lit.string) + 1;
-    }
-
-    // s_data is already align4 according to map_data2bin, as it is the number of words (4 bytes each)
-    // it needs to store the data section
-    const uint32_t text_base = s_header + (s_data << 2);
-
-    uint32_t text_cursor = text_base;
+    uint32_t text_cursor = text_addr;
     for (uint64_t i = 0; i < ast->s_text; i++) {
       const parser::RISCVASTN_Text* inst = &(ast->text[i]);
       const lexer::RISCVTokenType type = ast->text[i].inst->type;
@@ -74,6 +61,32 @@ namespace mapper {
       map.insert({ ast->text[i].inst->lit.string, text_cursor });
     }
 
+     /* text_cursor ends at the first byte AFTER .text */
+    const uint32_t 
+      text_size = text_cursor - text_addr,
+      aligned_text_size = next_pow2(text_size),
+      data_base = text_addr + aligned_text_size;
+    data_addr = data_base;
+
+    uint32_t data_cursor = data_base;
+    for (uint64_t i = 0; i < ast->s_data; i++) {
+      map.insert({ ast->data[i].symbol->lit.string, data_cursor });
+
+      if (ast->data[i].type->type != lexer::TOKEN_STRING) {
+        data_cursor += lexer::riscv_token_get_type_size(ast->data[i].type->type) * ast->data[i].s_arr;
+        continue;
+      }
+
+      for (uint64_t j = 0; j < ast->data[i].s_arr; j++)
+        data_cursor += strlen(ast->data[i].arr[j]->lit.string) + 1;
+    }
+
+    const uint32_t 
+      data_size = data_cursor - data_base,
+      aligned_data_size = next_pow2(data_size),
+      stack_base = data_base + aligned_data_size;
+    stack_addr = stack_base + s_stack; // this is the top of the stack, so it grows downward
+
     /*
      * used for debug
       for (const auto& [label, addr] : map)
@@ -90,7 +103,7 @@ namespace mapper {
         insts = (uint32_t*)realloc(insts, max_s_insts * sizeof(uint32_t));
         error(FATAL, insts == nullptr, "mapper - reallocation of instruction array returned a nullptr", "", __FILE__, __LINE__);
       }
-      const uint32_t pc = text_base + (s_insts << 2);
+      const uint32_t pc = text_addr + (s_insts << 2);
 
       const parser::RISCVASTN_Text* inst = &(ast->text[i]);
 
@@ -1045,7 +1058,7 @@ namespace mapper {
     return insts;
   }
 
-  uint32_t* map_data2bin(const parser::RISCVAST* ast, uint64_t& s_data) {
+  uint32_t* map_data2bin(const parser::RISCVAST* ast, uint32_t& s_data) {
     error(FATAL, ast == nullptr, "mapper - ast is a nullptr in ", __FUNCTION__, __FILE__, __LINE__);
 
     uint64_t total_s_data = 0;
@@ -1134,13 +1147,22 @@ namespace mapper {
     error(FATAL, !file.is_open(), "mapper - could not open output file ", filename, __FILE__, __LINE__);
     log("mapper - opened output file ", filename, __FILE__, __LINE__);
 
-    file.write(reinterpret_cast<const char*>(&encoding.s_data),  sizeof(uint64_t));
-    file.write(reinterpret_cast<const char*>(&encoding.s_insts), sizeof(uint64_t));
+    file.write(reinterpret_cast<const char*>(&encoding.s_insts),    sizeof(uint32_t));
+    file.write(reinterpret_cast<const char*>(&encoding.s_data),     sizeof(uint32_t));
+    file.write(reinterpret_cast<const char*>(&encoding.s_stack),    sizeof(uint32_t));
+    file.write(reinterpret_cast<const char*>(&encoding.text_addr),  sizeof(uint32_t));
+    file.write(reinterpret_cast<const char*>(&encoding.data_addr),  sizeof(uint32_t));
+    file.write(reinterpret_cast<const char*>(&encoding.stack_addr), sizeof(uint32_t));
 
-    for (uint64_t i = 0; i < encoding.s_data; i++)
-      file.write(reinterpret_cast<const char*>(&(encoding.data[i])), sizeof(uint32_t));
-    for (uint64_t i = 0; i < encoding.s_insts; i++)
-      file.write(reinterpret_cast<const char*>(&(encoding.insts[i])), sizeof(uint32_t));
+    file.write(
+      reinterpret_cast<const char*>(encoding.insts),
+      encoding.s_insts * sizeof(uint32_t)
+    );
+
+    file.write(
+      reinterpret_cast<const char*>(encoding.data),
+      encoding.s_data * sizeof(uint32_t)
+    );
 
     log("mapper - instructions written to the output file", filename, __FILE__, __LINE__);
     free(output_filename);
@@ -1245,4 +1267,16 @@ inline uint32_t riscv_map_j_type(const uint32_t imm, const uint8_t rd, const uin
 inline uint32_t riscv_map_relative_addr(const uint32_t pc, const uint32_t addr) {
   // addresses should be multiples of 4 already
   return static_cast<uint32_t>(((int32_t)addr - (int32_t)pc));
+}
+
+inline uint32_t next_pow2(uint32_t x) {
+  if (x == 0)
+    return 1;
+  x--;
+  x |= x >> 1;
+  x |= x >> 2;
+  x |= x >> 4;
+  x |= x >> 8;
+  x |= x >> 16;
+  return x + 1;
 }

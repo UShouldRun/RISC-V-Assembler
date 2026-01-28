@@ -188,5 +188,6 @@ inline uint32_t riscv_map_u_type (const uint32_t, const uint8_t, const uint8_t);
 inline uint32_t riscv_map_j_type (const uint32_t, const uint8_t, const uint8_t);
 
 inline uint32_t riscv_map_relative_addr (const uint32_t, const uint32_t);
+inline uint32_t next_pow2               (uint32_t x);
 
 #endif // !__MAPPER_PRIVATE_H__

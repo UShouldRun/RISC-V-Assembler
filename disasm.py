@@ -96,127 +96,100 @@ def get_jal_imm(inst):
     imm = imm_20 | imm_19_12 | imm_11 | imm_10_1
     return sign_extend(imm, 21)
 
-# --- Disassembler ---
 def disassemble(inst, pc):
     opcode = inst & 0x7f
     type_ = OPCODES.get(opcode)
     if type_ is None:
-        return f".word 0x{inst:08x} 0b{inst:032b}"
-
-    # --- R-type ---
-    if type_ == 'R':
-        rd = REGS[get_bits(inst, 7, 12)]
-        funct3 = get_bits(inst, 12, 15)
-        rs1 = REGS[get_bits(inst, 15, 20)]
-        rs2 = REGS[get_bits(inst, 20, 25)]
-        funct7 = get_bits(inst, 25, 32)
-        mnemonic = R_FUNCTS.get((funct3, funct7), 'R_UNKNOWN')
-        return f"{mnemonic} {rd}, {rs1}, {rs2}"
-
-    # --- I-type ---
-    elif type_ == 'I':
-        rd = REGS[get_bits(inst, 7, 12)]
-        funct3 = get_bits(inst, 12, 15)
-        rs1 = REGS[get_bits(inst, 15, 20)]
-        imm = sign_extend(get_bits(inst, 20, 32), 12)
-
-        if opcode == 0b0000011:  # Loads
-            mnemonic = LOAD_FUNCTS.get(funct3,'L_UNKNOWN')
-            return f"{mnemonic} {rd}, {imm}({rs1})"
-
-        elif opcode == 0b1100111:  # JALR
-            return f"JALR {rd}, {rs1}, {imm}"
-
-        elif opcode == 0b0010011:  # ALU immediate
-            if funct3 == 0x5:
-                shamt = get_bits(imm,0,5)
-                funct7 = get_bits(imm,5,12)
-                mnemonic = 'SRAI' if funct7==0x20 else 'SRLI'
-                return f"{mnemonic} {rd}, {rs1}, {shamt}"
-
-            mnemonic = I_FUNCTS.get(funct3,'I_UNKNOWN')
-            return f"{mnemonic} {rd}, {rs1}, {imm}"
-
-        else:
-            return f"I_UNKNOWN {rd}, {rs1}, {imm}"
-
-    # --- S-type ---
-    elif type_ == 'S':
-        funct3 = get_bits(inst, 12, 15)
-        rs1 = REGS[get_bits(inst, 15, 20)]
-        rs2 = REGS[get_bits(inst, 20, 25)]
-        imm = sign_extend(get_bits(inst,7,12) | (get_bits(inst,25,32)<<5),12)
-        mnemonic = STORE_FUNCTS.get(funct3,'S_UNKNOWN')
-        return f"{mnemonic} {rs2}, {imm}({rs1})"
-
-    # --- B-type ---
-    elif type_ == 'B':
-        funct3 = get_bits(inst, 12, 15)
-        rs1 = REGS[get_bits(inst, 15, 20)]
-        rs2 = REGS[get_bits(inst, 20, 25)]
-        imm = get_branch_imm(inst)
-        target = (pc + imm) & 0xFFFFFFFF
-        mnemonic = BRANCH_FUNCTS.get(funct3,'B_UNKNOWN')
-        return f"{mnemonic} {rs1}, {rs2}, {imm} (target=0x{target:08x})"
-
-    # --- U-type ---
-    elif type_ == 'U':
-        rd = REGS[get_bits(inst,7,12)]
-        imm = inst & 0xFFFFF000
-        target = (pc + imm) & 0xFFFFFFFF
-        if opcode == 0b0110111:  # LUI
-            return f"LUI {rd}, {hex(imm)}"
-        else:  # AUIPC
-            return f"AUIPC {rd}, {hex(imm)} (target=0x{target:08x})"
-
-    # --- J-type ---
-    elif type_ == 'J':
-        rd = REGS[get_bits(inst,7,12)]
-        imm = get_jal_imm(inst)
-        target = (pc + imm) & 0xFFFFFFFF
-        return f"JAL {rd}, {imm} (target=0x{target:08x})"
-
-    # --- SYSTEM ---
-    elif type_ == 'SYSTEM':
-        imm = get_bits(inst,20,32)
-        mnemonic = SYSTEM_FUNCTS.get(imm,'SYSTEM_UNKNOWN')
-        return f"{mnemonic}"
-
-    # --- LNS ---
-    elif type_ == 'LNS':
-        rd = REGS[get_bits(inst,7,12)]
-        funct3 = get_bits(inst,12,15)
-        rs1 = REGS[get_bits(inst,15,20)]
-        rs2 = REGS[get_bits(inst,20,25)]
-        funct7 = get_bits(inst,25,32)
-        mnemonic = LNS_FUNCTS.get((funct3,funct7),'LNS_UNKNOWN')
-        return f"{mnemonic} {rd}, {rs1}, {rs2}"
-
-    # --- fallback ---
-    else:
         return f".word 0x{inst:08x}"
 
-# --- Parse binary file ---
+    if type_=='R':
+        rd=REGS[get_bits(inst,7,12)]
+        rs1=REGS[get_bits(inst,15,20)]
+        rs2=REGS[get_bits(inst,20,25)]
+        f3=get_bits(inst,12,15)
+        f7=get_bits(inst,25,32)
+        m=R_FUNCTS.get((f3,f7),'R_UNKNOWN')
+        return f"{m} {rd}, {rs1}, {rs2}"
+
+    if type_=='I':
+        rd=REGS[get_bits(inst,7,12)]
+        rs1=REGS[get_bits(inst,15,20)]
+        f3=get_bits(inst,12,15)
+        imm=sign_extend(get_bits(inst,20,32),12)
+
+        if opcode==0b0000011:
+            return f"{LOAD_FUNCTS.get(f3)} {rd}, {imm}({rs1})"
+        if opcode==0b1100111:
+            return f"JALR {rd}, {rs1}, {imm}"
+        if f3==0x5:
+            sh=get_bits(imm,0,5)
+            return f"{'SRAI' if get_bits(imm,5,12)==0x20 else 'SRLI'} {rd}, {rs1}, {sh}"
+        return f"{I_FUNCTS.get(f3)} {rd}, {rs1}, {imm}"
+
+    if type_=='S':
+        rs1=REGS[get_bits(inst,15,20)]
+        rs2=REGS[get_bits(inst,20,25)]
+        f3=get_bits(inst,12,15)
+        imm=sign_extend(get_bits(inst,7,12)|(get_bits(inst,25,32)<<5),12)
+        return f"{STORE_FUNCTS.get(f3)} {rs2}, {imm}({rs1})"
+
+    if type_=='B':
+        rs1=REGS[get_bits(inst,15,20)]
+        rs2=REGS[get_bits(inst,20,25)]
+        f3=get_bits(inst,12,15)
+        imm=get_branch_imm(inst)
+        return f"{BRANCH_FUNCTS.get(f3)} {rs1}, {rs2}, {imm} (target=0x{(pc+imm)&0xffffffff:08x})"
+
+    if type_=='U':
+        rd=REGS[get_bits(inst,7,12)]
+        imm=inst&0xfffff000
+        if opcode==0b0110111:
+            return f"LUI {rd}, {hex(imm)}"
+        return f"AUIPC {rd}, {hex(imm)} (target=0x{(pc+imm)&0xffffffff:08x})"
+
+    if type_=='J':
+        rd=REGS[get_bits(inst,7,12)]
+        imm=get_jal_imm(inst)
+        return f"JAL {rd}, {imm} (target=0x{(pc+imm)&0xffffffff:08x})"
+
+    if type_=='SYSTEM':
+        return SYSTEM_FUNCTS.get(get_bits(inst,20,32),'SYSTEM_UNKNOWN')
+
+    if type_=='LNS':
+        rd=REGS[get_bits(inst,7,12)]
+        rs1=REGS[get_bits(inst,15,20)]
+        rs2=REGS[get_bits(inst,20,25)]
+        f3=get_bits(inst,12,15)
+        f7=get_bits(inst,25,32)
+        return f"{LNS_FUNCTS.get((f3,f7))} {rd}, {rs1}, {rs2}"
+
+    return f".word 0x{inst:08x}"
+
 def parse_binary(filename):
     with open(filename,"rb") as f:
-        # Read 64-bit headers
-        s_data = struct.unpack("<Q", f.read(8))[0]
-        s_insts = struct.unpack("<Q", f.read(8))[0]
-        print(f"# Data words: {s_data}, Instructions: {s_insts}")
+        s_insts    = struct.unpack("<I", f.read(4))[0]
+        s_data     = struct.unpack("<I", f.read(4))[0]
+        s_stack    = struct.unpack("<I", f.read(4))[0]
+        text_addr  = struct.unpack("<I", f.read(4))[0]
+        data_addr  = struct.unpack("<I", f.read(4))[0]
+        stack_addr = struct.unpack("<I", f.read(4))[0]
 
-        # Skip data section
-        f.seek(16 + s_data * 4)
-
-        pc = 16 + s_data * 4  # first instruction after data
+        print(f".text @ 0x{text_addr:08x}, size: {4 * s_insts} bytes")
+        pc = text_addr
         for _ in range(s_insts):
-            data = f.read(4)
-            if len(data)<4:
-                break
-            inst = struct.unpack("<I", data)[0]
+            inst = struct.unpack("<I", f.read(4))[0]
             print(f"0x{pc:08x} {disassemble(inst, pc)}")
             pc += 4
 
-# --- Main ---
+        print(f"\n.data @ 0x{data_addr:08x}, size: {4 * s_data} bytes")
+        addr = data_addr
+        for _ in range(s_data):
+            word = struct.unpack("<I", f.read(4))[0]
+            print(f"0x{addr:08x} .word 0x{word:08x}")
+            addr += 4
+
+        print(f"\n.stack @ 0x{stack_addr:08x}, size: {4 * s_stack} bytes")
+
 if __name__=="__main__":
     if len(sys.argv)<2:
         print("Usage: python disasm.py <binary_file>")

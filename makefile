@@ -23,7 +23,7 @@ GREEN = \033[032m
 BLUE  = \033[036m
 RESET = \033[0m
 
-.PHONY: all clean
+.PHONY: all test loc clean
 
 all: $(BUILD_DIR) $(TARGET)
 
@@ -65,6 +65,22 @@ test: all
 	else \
 		echo "$(GREEN)All tests passed ✔$(RESET)"; \
 	fi
+
+loc:
+	@echo "----------------------------------------"
+	@printf "%-10s | %10s\n" "Language" "Lines"
+	@echo "----------------------------------------"
+	@cpp_lines=$$(find . -type f \( -name "*.cpp" -o -name "*.h" \) -print0 \
+		| xargs -0 cat 2>/dev/null | wc -l); \
+	printf "%-10s | %10d\n" "C++" $$cpp_lines; \
+	for ext in c py sh asm s txt md; do \
+		lines=$$(find . -type f -name "*.$$ext" -print0 \
+			| xargs -0 cat 2>/dev/null | wc -l); \
+		if [ $$lines -gt 0 ]; then \
+			printf "%-10s | %10d\n" "$$ext" "$$lines"; \
+		fi; \
+	done
+	@echo "----------------------------------------"
 
 $(BUILD_DIR):
 	mkdir -p $@
